@@ -363,7 +363,7 @@ void setup() {
   M5.Lcd.fillScreen(BLACK);
   M5.Lcd.drawRoundRect(0, 0, 320, 240, 8, CYAN);
   M5.Lcd.drawRoundRect(4, 24, 310, 104, 6, CYAN);
-  M5.Lcd.drawRoundRect(4, 133, 310, 102, 6, CYAN);
+  M5.Lcd.drawRoundRect(4, 133, 310, 101, 6, CYAN);
   M5.Lcd.drawRoundRect(8, 28, 90, 96, 4, BLUE);
   M5.Lcd.drawRoundRect(222, 28, 88, 96, 4, BLUE);
   M5.Lcd.drawRoundRect(8, 136, 90, 96, 4, BLUE);
