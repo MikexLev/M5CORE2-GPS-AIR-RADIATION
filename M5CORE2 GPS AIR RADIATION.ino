@@ -204,9 +204,11 @@ void checkForAlarms(float CO, float NH3, float NO2, float EMF, float radiation) 
 
   // Strahlungswarnung
   if (radiation > RADIATION_THRESHOLD) {
-    M5.Lcd.setTextColor(RED, BLACK);
-    M5.Lcd.setCursor(224, 31);
-    M5.Lcd.print("!!! DANGER !!!");
+    //M5.Lcd.fillRect(224, 102, 100, 14, WHITE);  // Löscht mögliche Artefakte
+    //M5.Lcd.setTextColor(RED, BLACK);
+    //M5.Lcd.setCursor(224, 31);
+    //M5.Lcd.setCursor(224, 102);
+    //M5.Lcd.print("!!! DANGER !!!");
     M5.Lcd.drawPngFile(SD, "/radiation3.png", 235, 30);
     int patternRadiation[] = { 200, 100, 400, 100, 200 };
     triggerVibrationPattern(patternRadiation, sizeof(patternRadiation) / sizeof(patternRadiation[0]));
