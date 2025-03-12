@@ -13,16 +13,16 @@
 bool selectingCountry = true;
 bool selectingCity = false;
 
-unsigned long lastFrameTime = 0;  // Speichert die Zeit des letzten Bildwechsels
-int currentFrame = 1;             // Startframe der Animation
-bool isAnimating = false;         // Steuert, ob Animation aktiv ist
+//unsigned long lastFrameTime = 0;  // Speichert die Zeit des letzten Bildwechsels
+//int currentFrame = 1;             // Startframe der Animation
+//bool isAnimating = false;         // Steuert, ob Animation aktiv ist
 
 BME280_I2C bme(0x76);  //i2C PA_SDA 32,PA_SCL 33
 TinyGPSPlus gps;
 
 unsigned long lastGPSTimeUpdate = 0;  // Letzte Aktualisierung der Uhrzeit
 
-const int gpsUpdateInterval = 10;      // GPS-Anzeige nur alle 100 ms aktualisieren
+const int gpsUpdateInterval = 100;      // GPS-Anzeige nur alle 100 ms aktualisieren
 const float CO_THRESHOLD = 30.0;        // CO: gefährlich ab 30 ppm
 const float NH3_THRESHOLD = 25.0;       // NH3: gefährlich ab 25 ppm
 const float NO2_THRESHOLD = 10.0;       // NO2: gefährlich ab 10 ppm
@@ -42,10 +42,10 @@ volatile unsigned long pulseCount = 0;  // Impulszähler
 volatile bool drawBitmapFlag = false;   // Flag, um Bitmap zu zeichnen
 
 void drawPNGGeigerSignal() {
-  if (SD.exists("/radiation.png")) {                    // Überprüfen, ob Datei auf SD-Karte existiert
-    M5.Lcd.drawPngFile(SD, "/radiation.png", 197, 27);  // Position anpassen
+  if (SD.exists("/radiation.png")) {
+    M5.Lcd.drawPngFile(SD, "/radiation.png", 197, 27);
   } else {
-    Serial.println("Fehler: radiation.png nicht gefunden!");  // Falls Datei fehlt
+    Serial.println("Fehler: radiation.png nicht gefunden!");
   }
 }
 
@@ -57,7 +57,7 @@ void IRAM_ATTR countPulse() {
 float doseRate = 0.0;     // Dosis in µSv/h
 float averageDose = 0.0;  // Durchschnittliche Dosis
 
-const float calibrationFactor = 6.0;  //108.0;  // Kalibrierung: CPM pro µSv/h
+const float calibrationFactor = 1.0;  //108.0; 6.0;  // Kalibrierung: CPM pro µSv/h
 // Historie für Durchschnittswerte
 #define RATE_GRAPH_WIDTH 83
 #define AVG_GRAPH_WIDTH 17
@@ -113,10 +113,10 @@ int i = 0;
 int j = 0;
 
 // Speichert die vorherigen Zeigerpositionen
-int prevHourX, prevHourY, prevHourQ, prevHourR;
-int prevMinuteX, prevMinuteY, prevMinuteQ, prevMinuteR;
-int prevSecondX, prevSecondY;
-int previousSecond = -1;  // Startwert für Sekundenzeiger
+//int prevHourX, prevHourY, prevHourQ, prevHourR;
+//int prevMinuteX, prevMinuteY, prevMinuteQ, prevMinuteR;
+//int prevSecondX, prevSecondY;
+//int previousSecond = -1;  // Startwert für Sekundenzeiger
 
 bool GPSnotReady = false;
 bool sensorConnected;
@@ -160,12 +160,10 @@ void triggerVibrationPattern(const int pattern[], int len) {
 
 // Alarm visuell anzeigen
 void showAlarm(const char *pngFile, int textCursorX, int textCursorY, const char *message) {
-  // Löscht den Bereich, in dem der Alarm erscheint
-  //M5.Lcd.fillRoundRect(9, 29, 88, 94, 4, BLACK);
   M5.Lcd.setTextColor(RED, BLACK);
   M5.Lcd.setCursor(textCursorX, textCursorY);
   M5.Lcd.print(message);
-  // Das Symbol an der festgelegten Position anzeigen
+
   M5.Lcd.drawPngFile(SD, pngFile, 22, 31);
 }
 
@@ -565,7 +563,7 @@ void printStr(const char *str, int len) {
     Serial.print(i < slen ? str[i] : ' ');  // Falls der String kürzer als len ist, Leerzeichen hinzufügen
   }
 }
-
+/*
 void playAnimation() {
   if (!isAnimating) return;  // Falls Animation nicht aktiv ist, abbrechen
 
@@ -582,7 +580,7 @@ void playAnimation() {
       isAnimating = false;    // Animation stoppen
     }
   }
-}
+}*/
 
 void loop() {
   M5.update();                              // Touch-Events aktualisieren
@@ -967,16 +965,24 @@ void loop() {
   }
   relCourse = relCourse - 360;
   if (distanceToHome < 10) {
-
-    for (int i = 1; i <= 42; i++) {
-      char filePath[20];
+//M5.Lcd.drawPngFile(SD, "/dest42.png", 18, 149);
+ M5.Lcd.drawCircle(52, 184, 30, GREEN);   
+    M5.Lcd.drawCircle(52, 184, 20, GREENYELLOW);
+    M5.Lcd.drawCircle(52, 184, 10, YELLOW);
+    M5.Lcd.drawCircle(52, 184, 2, WHITE);
+    M5.Lcd.drawFastVLine(52, 200, 20, YELLOW);
+    M5.Lcd.drawFastVLine(52, 149, 20, YELLOW);
+    M5.Lcd.drawFastHLine(68, 184, 20, YELLOW);
+    M5.Lcd.drawFastHLine(17, 184, 20, YELLOW);
+    /*for (int i = 1; i <= 42; i++) {
+      char filePath[10];
       sprintf(filePath, "/dest%d.png", i);        // Datei-Pfad generieren
       M5.Lcd.drawPngFile(SD, filePath, 18, 149);  // PNG anzeigen
-    }
-
+    }*/
+//delay(500);
     M5.Lcd.setTextSize(1);
     M5.Lcd.setTextColor(YELLOW, BLACK);
-    M5.Lcd.setCursor(51, 140);
+    M5.Lcd.setCursor(50, 140);
     M5.Lcd.print("N");
     M5.Lcd.setCursor(11, 181);
     M5.Lcd.print("W");
@@ -1007,8 +1013,17 @@ void loop() {
     q2 = q1 + q;
     r2 = r1 - r;
     if ((gps.location.lat() == 0) && (gps.location.lng() == 0)) {
-      M5.Lcd.drawPngFile(SD, "/nogps2.png", 18, 149);
-      delay(500);
+     M5.Lcd.drawCircle(52, 184, 30, NAVY);   
+    M5.Lcd.drawCircle(52, 184, 20, 0x00AF);
+    M5.Lcd.drawCircle(52, 184, 10, BLUE);
+    M5.Lcd.drawCircle(52, 184, 2, CYAN);
+    M5.Lcd.drawFastVLine(52, 200, 20, DARKCYAN);
+    M5.Lcd.drawFastVLine(52, 149, 20, DARKCYAN);
+    M5.Lcd.drawFastHLine(68, 184, 20, DARKCYAN);
+    M5.Lcd.drawFastHLine(17, 184, 20, DARKCYAN);
+     
+     // M5.Lcd.drawPngFile(SD, "/nogps2.png", 18, 149);
+      //delay(500);
     } else {
       M5.Lcd.drawLine(x1, y1, x2, y2, YELLOW);
       M5.Lcd.drawLine(q1, r1, x2, y2, YELLOW);
@@ -1030,7 +1045,7 @@ void loop() {
     }
     M5.Lcd.setTextSize(1);
     M5.Lcd.setTextColor(RED, BLACK);
-    M5.Lcd.setCursor(51, 140);
+    M5.Lcd.setCursor(50, 140);
     M5.Lcd.print("N");
     M5.Lcd.setCursor(11, 181);
     M5.Lcd.print("W");
@@ -1302,6 +1317,11 @@ void loop() {
     snprintf(latBuffer, sizeof(latBuffer), "%.6f", smoothLat);  // Exakt 6 Dezimalstellen
     M5.Lcd.setCursor(186, 136);
     M5.Lcd.print(latBuffer);
+    M5.Lcd.fillRect(293, 136, 20, 14, BLACK);  // Löscht mögliche Artefakte
+  M5.Lcd.fillRect(314, 136, 6, 14, BLACK);  // Löscht mögliche Artefakte
+  M5.Lcd.drawFastVLine(313, 137, 13, CYAN);// Löscht mögliche Artefakte
+  M5.Lcd.drawFastVLine(319, 136, 14, CYAN);// Löscht mögliche Artefakte
+  M5.Lcd.drawPixel(312, 136, CYAN);// Löscht mögliche Artefakte
   } else {
     M5.Lcd.fillRect(160, 136, 152, 14, BLACK);  // Löscht mögliche Artefakte
     M5.Lcd.setCursor(200, 136);
@@ -1327,6 +1347,7 @@ void loop() {
     snprintf(lngBuffer, sizeof(lngBuffer), "%.6f", smoothLon);  // Exakt 6 Nachkommastellen
     M5.Lcd.setCursor(198, 156);
     M5.Lcd.print(lngBuffer);
+    M5.Lcd.fillRect(293, 156, 18, 14, BLACK);  // Löscht mögliche Artefakte
   } else {
     M5.Lcd.fillRect(160, 156, 152, 14, BLACK);  // Löscht mögliche Artefakte
     M5.Lcd.setCursor(200, 156);
@@ -1368,6 +1389,7 @@ void loop() {
   } else if (TinyGPSPlus::distanceBetween(gps.location.lat(), gps.location.lng(), homeLat, homeLon) < 1000) {
     M5.Lcd.print(TinyGPSPlus::distanceBetween(gps.location.lat(), gps.location.lng(), homeLat, homeLon), 0);
     M5.Lcd.print("m ");
+  M5.Lcd.fillRect(200, 215, 110, 14, BLACK);  // Löscht mögliche Artefakte
   } else {
     M5.Lcd.print(TinyGPSPlus::distanceBetween(gps.location.lat(), gps.location.lng(), homeLat, homeLon) / 1000, 2);
     M5.Lcd.print("km ");
@@ -1452,7 +1474,6 @@ void displaySavedLocation() {
   M5.Lcd.fillRect(21, 233, 100, 10, BLACK);  // Löscht alten Text
   M5.Lcd.setCursor(21, 233);
   M5.Lcd.setTextColor(CYAN, BLACK);
-  //M5.Lcd.print("> ");
   M5.Lcd.setTextColor(YELLOW, BLACK);
   M5.Lcd.print(savedCity);  // Zeigt gespeicherte Stadt an
   M5.Lcd.setTextColor(CYAN, BLACK);
