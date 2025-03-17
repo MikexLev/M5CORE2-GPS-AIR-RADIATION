@@ -9,6 +9,7 @@
 #include "FONT1.h"
 #include "FONT2.h"
 #include "CITIES.h"
+#include "moonPhase.h"
 bool selectingCountry = true;
 bool selectingCity = false;
 
@@ -38,17 +39,14 @@ volatile bool drawBitmapFlag = false;   // Flag, um Bitmap zu zeichnen
 
 void drawPNGGeigerSignal() {
   if (SD.exists("/radiation.png")) {
-    M5.Lcd.drawPngFile(SD, "/radiation.png", 198, 27);
+
+    M5.Lcd.drawPngFile(SD, "/radiation.png", 198, 101);
+  delay(200);
   } else {
     Serial.println("Fehler: radiation.png nicht gefunden!");
   }
 }
 
-// Interrupt-Funktion: Zähle Geigerzähler-Impulse und setze das Flag
-void IRAM_ATTR countPulse() {
-  pulseCount++;           // Impuls zählen
-  drawBitmapFlag = true;  // Bitmap-Zeichen-Flag setzen
-}
 float doseRate = 0.0;     // Dosis in µSv/h
 float averageDose = 0.0;  // Durchschnittliche Dosis
 
@@ -56,6 +54,7 @@ const float calibrationFactor = 1.0;  //108.0; 6.0;  // Kalibrierung: CPM pro µ
 // Historie für Durchschnittswerte
 #define RATE_GRAPH_WIDTH 83
 #define AVG_GRAPH_WIDTH 17
+#define MOON_PHASES_PATH "/phases/"  // Ordner für die PNG-Dateien auf der SD-Karte
 
 float avgGraphBuffer[AVG_GRAPH_WIDTH] = { 0 };
 int avgGraphIndex = 0;
@@ -215,6 +214,14 @@ String savedCity = "N/A";
 void updateNearestCity(float latitude, float longitude) {
   findNearestCity(latitude, longitude, savedCity, nearestCountry);
 }
+// Interrupt-Funktion: Zähle Geigerzähler-Impulse und setze das Flag
+void IRAM_ATTR countPulse() {
+  pulseCount++;           // Impuls zählen
+  //M5.Lcd.fillRect(201, 104, 23, 23, BLACK);  // Lösche alten Wert
+  drawBitmapFlag = true;  // Bitmap-Zeichen-Flag setzen
+
+}
+
 
 void setup() {
   Serial.begin(115200);
@@ -278,6 +285,7 @@ void setup() {
       pngDrawn = true;
     } else {  // Else draw the PNG
       M5.update();
+      
       M5.Lcd.drawPngFile(SD, "/radar1.png", 0, 40);
 
       File myFile = SD.open("/home_coordinates.txt", FILE_READ);
@@ -547,10 +555,78 @@ void printStr(const char *str, int len) {
     Serial.print(i < slen ? str[i] : ' ');  // Falls der String kürzer als len ist, Leerzeichen hinzufügen
   }
 }
+// Globale Variable für das zuletzt gezeichnete Wetter-Icon
+String lastWeatherIcon = "";
+
+// Funktion zum Aktualisieren des Icons
+void updateWeatherIcon(const String &newIcon) {
+    if (newIcon != lastWeatherIcon) {
+        M5.Lcd.fillRoundRect(98, 100, 24, 24, 4, BLACK);
+        M5.Lcd.drawPngFile(SD, newIcon.c_str(), 100, 99);
+        lastWeatherIcon = newIcon;
+    }
+}
+
+// Funktion zum Aktualisieren der Wetteranzeige
+void updateWeatherDisplay() {
+    bme.readSensor();
+    M5.Lcd.setTextSize(1);
+    M5.Lcd.drawRoundRect(12, 31, 82, 11, 2, 0x00AF);
+    M5.Lcd.setCursor(16, 33);
+    M5.Lcd.setTextColor(DARKCYAN, BLACK);
+    M5.Lcd.print("T:");
+    M5.Lcd.setTextColor(CYAN, BLACK);
+    M5.Lcd.print(bme.getTemperature_C(), 1);
+    M5.Lcd.print(" \xF7");
+    M5.Lcd.println("C  ");
+    M5.Lcd.drawRoundRect(12, 42, 82, 11, 2, 0x00AF);
+    M5.Lcd.setCursor(16, 44);
+    M5.Lcd.setTextColor(DARKCYAN, BLACK);
+    M5.Lcd.print("H:");
+    M5.Lcd.setTextColor(CYAN, BLACK);
+    M5.Lcd.print(bme.getHumidity(), 0);
+    M5.Lcd.println(" %  ");
+    M5.Lcd.drawRoundRect(12, 53, 82, 11, 2, 0x00AF);
+    M5.Lcd.drawRoundRect(12, 64, 82, 12, 2, 0x00AF);
+
+    String weatherIcon;
+    float pressure = bme.getPressure_HP() / 100;
+
+    if (pressure <= 970) {
+        M5.Lcd.setCursor(16, 67);
+        M5.Lcd.print(">> STORM <<");
+        weatherIcon = "/weather/05.png";
+    } else if (pressure <= 1001) {
+        M5.Lcd.setCursor(16, 67);
+        if (bme.getTemperature_C() > 1) {
+            M5.Lcd.print(" >> RAIN <<");
+            weatherIcon = "/weather/04.png";
+        } else {
+            M5.Lcd.print(" >> SNOW <<");
+            weatherIcon = "/weather/03.png";
+        }
+    } else if (pressure <= 1010) {
+        M5.Lcd.setCursor(16, 67);
+        M5.Lcd.print("> OVERCAST <");
+        weatherIcon = "/weather/02.png";
+    } else if (pressure <= 1020) {
+        M5.Lcd.setCursor(16, 67);
+        M5.Lcd.print(">> CLOUDY <<");
+        weatherIcon = "/weather/01.png";
+    } else if (pressure <= 1040) {
+        M5.Lcd.setCursor(16, 67);
+        M5.Lcd.print(">>  CLEAR <<");
+        weatherIcon = "/weather/00.png";
+    }
+
+    updateWeatherIcon(weatherIcon);
+}
+
+
 
 void loop() {
   M5.update();                              // Touch-Events aktualisieren
-  M5.Lcd.fillRect(198, 25, 23, 23, BLACK);  // Lösche alten Wert
+  //M5.Lcd.fillRect(198, 25, 23, 23, WHITE);  // Lösche alten Wert
   unsigned long loopStart = millis();       // Startzeit für gleichmäßige Updates
   // GPS-Daten sofort einlesen, sobald sie ankommen
   while (MySerial.available()) {
@@ -577,7 +653,7 @@ void loop() {
       }
     }
   }
-
+M5.Lcd.fillRect(198, 104, 23, 23, BLACK);  // Lösche alten Wert
   static unsigned long lastUpdate = 0;
   unsigned long now = millis();
 
@@ -1034,10 +1110,10 @@ void loop() {
     Serial.println(gps.location.lat(), 6);
     Serial.print("Longitude: ");
     Serial.println(gps.location.lng(), 6);
-    M5.Lcd.drawPngFile(SD, "/SAT2.png", 99, 27);
+    M5.Lcd.drawPngFile(SD, "/SAT22.png", 199, 26);
   } else {
     Serial.println("Kein GPS-Fix!");
-    M5.Lcd.drawPngFile(SD, "/SAT1.png", 99, 27);
+    M5.Lcd.drawPngFile(SD, "/SAT11.png", 199, 26);
   }
 
   //COORDINATES
@@ -1064,46 +1140,9 @@ void loop() {
   if (cetHour >= 24) cetHour -= 24;  // Überlaufkorrektur
   if (cetHour < 0) cetHour += 24;    // Unterlaufkorrektur
 
-  bme.readSensor();
-  M5.Lcd.setTextSize(1);
-  M5.Lcd.drawRoundRect(12, 31, 82, 11, 2, 0x00AF);
-  M5.Lcd.setCursor(16, 33);
-  M5.Lcd.setTextColor(DARKCYAN, BLACK);
-  M5.Lcd.print("T:");
-  M5.Lcd.setTextColor(CYAN, BLACK);
-  M5.Lcd.print(bme.getTemperature_C(), 1);
-  M5.Lcd.print(" \xF7");
-  M5.Lcd.println("C  ");
-  M5.Lcd.drawRoundRect(12, 42, 82, 11, 2, 0x00AF);
-  M5.Lcd.setCursor(16, 44);
-  M5.Lcd.setTextColor(DARKCYAN, BLACK);
-  M5.Lcd.print("H:");
-  M5.Lcd.setTextColor(CYAN, BLACK);
-  M5.Lcd.print(bme.getHumidity(), 0);
-  M5.Lcd.println(" %  ");
-  M5.Lcd.drawRoundRect(12, 53, 82, 11, 2, 0x00AF);
-  M5.Lcd.drawRoundRect(12, 64, 82, 12, 2, 0x00AF);
-  if ((bme.getPressure_HP() / 100) <= 970) {
-    M5.Lcd.setCursor(16, 67);
-    M5.Lcd.print(">> STORM <<");
-  } else if ((bme.getPressure_HP() / 100) <= 1001) {
-    if (bme.getTemperature_C() > 1) {
-      M5.Lcd.setCursor(16, 67);
-      M5.Lcd.print(" >> RAIN <<");
-    } else {
-      M5.Lcd.setCursor(16, 67);
-      M5.Lcd.print(" >> SNOW <<");
-    }
-  } else if ((bme.getPressure_HP() / 100) <= 1010) {
-    M5.Lcd.setCursor(16, 67);
-    M5.Lcd.print("> OVERCAST <");
-  } else if ((bme.getPressure_HP() / 100) <= 1020) {
-    M5.Lcd.setCursor(16, 67);
-    M5.Lcd.print(">> CLOUDY <<");
-  } else if ((bme.getPressure_HP() / 100) <= 1040) {
-    M5.Lcd.setCursor(16, 67);
-    M5.Lcd.print(">>  CLEAR <<");
-  }
+
+ updateWeatherDisplay();
+  
   M5.Lcd.setCursor(16, 55);
   M5.Lcd.setTextColor(DARKCYAN, BLACK);
   M5.Lcd.print("P:");
@@ -1452,6 +1491,29 @@ if (gps.location.isValid() && gps.location.lng() != 0.0) {
       lastCountry = country;
     }
   }
+/*
+if (gps.date, gps.time.isValid() ) {
+        // 📅 Datum und Zeit aus GPS auslesen
+        int year = gps.date.year();
+        int month = gps.date.month();
+        int day = gps.date.day();
+
+        // 🌓 Mondphase berechnen
+        moonPhase moon;
+        moonData_t moonData = moon.getPhase(year, month, day);  // GPS-Datum übergeben
+        int phaseIndex = (int)(moonData.angle / 360.0 * 28) % 28;  // Umrechnung auf 28 Phasen
+
+        // 📂 PNG-Dateinamen erzeugen
+        char filename[32];
+        snprintf(filename, sizeof(filename), "%s%02d.png", MOON_PHASES_PATH, phaseIndex);
+
+        // 🌙 Mondphase auf dem Display anzeigen
+        M5.Lcd.fillScreen(BLACK);  // Vorherige Anzeige löschen
+        M5.Lcd.drawPngFile(SD, filename, 27, 99);
+
+        // ⏳ 1 Minute warten, bevor die Mondphase erneut aktualisiert wird
+        //delay(60000);
+    }*/
 }
 //LOOP END
 void displaySavedLocation() {
