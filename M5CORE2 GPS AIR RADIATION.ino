@@ -140,16 +140,17 @@ SoftwareSerial ss(RXPin, TXPin);
 
 static const int MAX_SATELLITES = 99;
 
-TinyGPSCustom totalGPGSVMessages(gps, "GPGSV", 1);
-TinyGPSCustom messageNumber(gps, "GPGSV", 2);
-TinyGPSCustom satsInView(gps, "GPGSV", 3);
-TinyGPSCustom satNumber[4];
+TinyGPSCustom totalGPGSVMessages(gps, "GPGSV", 1);  // $GPGSV sentence, first element
+TinyGPSCustom messageNumber(gps, "GPGSV", 2);       // $GPGSV sentence, second element
+TinyGPSCustom satsInView(gps, "GPGSV", 3);          // $GPGSV sentence, third element
+TinyGPSCustom satNumber[4];                         // to be initialized later
 TinyGPSCustom elevation[4];
 TinyGPSCustom azimuth[4];
 TinyGPSCustom snr[4];
 
 struct {
   bool active;
+  int prn;  // PRN-Nummer des Satelliten
   int elevation;
   int azimuth;
   int snr;
@@ -981,72 +982,75 @@ void loop() {
   M5.Lcd.drawLine(129, 44, 193, 108, DARKGREEN);
   M5.Lcd.drawLine(128, 109, 193, 44, DARKGREEN);
 
-  // SAT DISPLAY
-  int activeSatellites = 0;
-  for (int i = 0; i < MAX_SATELLITES; ++i) {
-    if (sats[i].active) {
-      activeSatellites++;
-    }
+// SAT DISPLAY
+int activeSatellites = 0;
+for (int i = 0; i < MAX_SATELLITES; ++i) {
+  if (sats[i].active) {
+    activeSatellites++;
   }
+}
 
-  // Falls Satelliten aktiv sind, Position berechnen
-  if (activeSatellites > 0) {
-    int centerX = 161, centerY = 76;
-    float rad_fac = 3.14159265359 / 180;
+// Falls Satelliten aktiv sind, Position berechnen
+if (activeSatellites > 0) {
+  int centerX = 161, centerY = 76;
+  float rad_fac = 3.14159265359 / 180;
 
-    for (int i = 0; i < MAX_SATELLITES; ++i) {
-      if (sats[i].active && sats[i].snr > 1) {  // Prüfen, ob Satellit gültig ist
-        float az_r = sats[i].azimuth * rad_fac;
-        float e = 42 * (90 - sats[i].elevation / 2) / 90;
-        int x = centerX - (sin(az_r) * e);  // Spiegelung auf die andere Seite
-        int y = centerY - (cos(az_r) * e);
+  for (int i = 0; i < MAX_SATELLITES; ++i) {
+    if (sats[i].active && sats[i].snr > 1) {  // Prüfen, ob Satellit gültig ist
+      float az_r = sats[i].azimuth * rad_fac;
+      float e = 42 * (90 - sats[i].elevation / 2) / 90;
+      int x = centerX - (sin(az_r) * e);  // Spiegelung auf die andere Seite
+      int y = centerY - (cos(az_r) * e);
 
-        // Farbe basierend auf SNR bestimmen
-        uint16_t circleColor;
-        if (sats[i].snr > 55) {
-          circleColor = 0x03E0;  // Grün
-        } else if (sats[i].snr > 45) {
-          circleColor = 0xAFE5;
-        } else if (sats[i].snr > 40) {
-          circleColor = 0xFFE0;
-        } else if (sats[i].snr > 35) {
-          circleColor = 0x07FF;
-        } else if (sats[i].snr > 30) {
-          circleColor = 0x03EF;
-        } else if (sats[i].snr > 25) {
-          circleColor = 0xFD20;
-        } else if (sats[i].snr > 20) {
-          circleColor = 0x001F;
-        } else {
-          circleColor = 0xF800;  // Standardwert für schwaches Signal
-        }
-
-        // Falls alter Punkt existiert, löschen
-        if (oldX[i] > 0 && oldY[i] > 0) {
-          M5.Lcd.drawCircle(oldX[i], oldY[i], oldCircleSize1[i], BLACK);
-          M5.Lcd.fillCircle(oldX[i], oldY[i], oldCircleSize2[i], BLACK);
-        }
-
-        // Neuen Punkt zeichnen
-        M5.Lcd.drawCircle(x, y, 6, circleColor);
-        M5.Lcd.fillCircle(x, y, 2, CYAN);
-
-        // Neue Position speichern
-        oldX[i] = x;
-        oldY[i] = y;
-        oldCircleSize1[i] = 6;
-        oldCircleSize2[i] = 2;
+      // PRN-basierte Farbauswahl:
+      uint16_t circleColor;
+      int prn = sats[i].snr; // Annahme, dass PRN die SNR-Nummer ist
+      if (prn >= 1 && prn <= 32) {
+        circleColor = BLUE;  // GPS-Satelliten (PRN 1 bis 32)
+      } else if (prn >= 33 && prn <= 64) {
+        circleColor = RED;  // GLONASS-Satelliten (PRN 33 bis 64)
+      } else if (prn >= 65 && prn <= 96) {
+        circleColor = GREEN;  // Galileo-Satelliten (PRN 65 bis 96)
       } else {
-        // Falls Satellit nicht mehr aktiv ist, alten Punkt löschen
-        if (oldX[i] > 0 && oldY[i] > 0) {
-          M5.Lcd.drawCircle(oldX[i], oldY[i], oldCircleSize1[i], BLACK);
-          M5.Lcd.fillCircle(oldX[i], oldY[i], oldCircleSize2[i], BLACK);
-          oldX[i] = oldY[i] = -1;  // Setze auf -1 statt 0, um Probleme zu vermeiden
-          oldCircleSize1[i] = oldCircleSize2[i] = 0;
-        }
+        circleColor = YELLOW;  // Bezeichne alle anderen als Standard-Gelb
+      }
+
+      // Falls alter Punkt existiert, löschen
+      if (oldX[i] > 0 && oldY[i] > 0) {
+        // Lösche den alten Kreis
+        M5.Lcd.drawCircle(oldX[i], oldY[i], oldCircleSize1[i], BLACK);  // Äußeren Kreis löschen
+        M5.Lcd.fillCircle(oldX[i], oldY[i], oldCircleSize2[i], BLACK);   // Inneren Kreis löschen
+      }
+
+      // Größe des Kreises basierend auf SNR anpassen (größere Kreise für bessere SNR)
+      int circleSize = map(sats[i].snr, 1, 40, 2, 6);  // SNR zwischen 20 und 60 auf eine Größe von 5 bis 12 anpassen
+
+      // Zeichne den neuen Kreis
+      M5.Lcd.drawCircle(x, y, circleSize, circleColor);  // Äußeren Kreis zeichnen
+      M5.Lcd.fillCircle(x, y, circleSize / 3, CYAN);    // Inneren Kreis zeichnen (kleiner als der äußere Kreis)
+
+      // Neue Position und Größe speichern
+      oldX[i] = x;
+      oldY[i] = y;
+      oldCircleSize1[i] = circleSize;
+      oldCircleSize2[i] = circleSize / 3;  // Innerer Kreis ist kleiner als der äußere
+    } else {
+      // Falls Satellit nicht mehr aktiv ist, alten Punkt löschen
+      if (oldX[i] > 0 && oldY[i] > 0) {
+        M5.Lcd.drawCircle(oldX[i], oldY[i], oldCircleSize1[i], BLACK);  // Äußeren Kreis löschen
+        M5.Lcd.fillCircle(oldX[i], oldY[i], oldCircleSize2[i], BLACK);   // Inneren Kreis löschen
+        oldX[i] = oldY[i] = -1;  // Setze auf -1 statt 0, um Probleme zu vermeiden
+        oldCircleSize1[i] = oldCircleSize2[i] = 0;  // Lösche gespeicherte Werte
       }
     }
   }
+}
+
+
+
+
+
+
   M5.Lcd.fillRoundRect(17, 148, 72, 72, 2, BLACK);
   double relCourse = courseToHome - gps.course.deg();
   if (relCourse < 0) {
@@ -1304,45 +1308,45 @@ void loop() {
   // Alarmprüfung
   checkForAlarms(CO, NH3, NO2, EMF, radiation);
 
-  //BATTERY
+  // BATTERY
   float batVoltage = M5.Axp.GetBatVoltage();
-  float batPercentage = (batVoltage < 3.20) ? 0 : (batVoltage - 3.20) * 100;
-  float ACin = M5.Axp.isACIN();
+  float batPercentage = (batVoltage < 3.20) ? 0 : (batVoltage - 3.20) * 100 / (4.2 - 3.2);  // Normalisiert auf 100%
+  batPercentage = constrain(batPercentage, 0, 100);                                         // Begrenzen auf 0 - 100%
+  bool isCharging = M5.Axp.isACIN();
 
   M5.Lcd.setTextSize(1);
   M5.Lcd.setCursor(240, 5);
   M5.Lcd.setTextColor(GREEN, BLACK);
   M5.Lcd.print(batVoltage, 2);
-  M5.Lcd.println("v");
-  if ((batPercentage) < 20) {
-    M5.Lcd.fillRoundRect(276, 8, 33, 12, 2, BLACK);
-    M5.Lcd.fillRoundRect(277, 9, (batPercentage) / 3.2, 10, 2, RED);
-    M5.Lcd.setCursor(240, 14);
-    M5.Lcd.setTextColor(RED, BLACK);
-    M5.Lcd.print(batPercentage, 0);
-    M5.Lcd.println("% ");
-  } else if ((batPercentage) < 50) {
-    M5.Lcd.fillRoundRect(276, 8, 33, 12, 2, BLACK);
-    M5.Lcd.fillRoundRect(277, 9, (batPercentage) / 3.2, 10, 2, YELLOW);
-    M5.Lcd.setCursor(240, 14);
-    M5.Lcd.setTextColor(YELLOW, BLACK);
-    M5.Lcd.print(batPercentage, 0);
-    M5.Lcd.println("% ");
+  M5.Lcd.println("V");
+
+  // Bestimme Farbe basierend auf dem Ladezustand
+  uint16_t batteryColor;
+  if (batPercentage < 20) {
+    batteryColor = RED;
+  } else if (batPercentage < 50) {
+    batteryColor = YELLOW;
   } else {
-    M5.Lcd.fillRoundRect(276, 8, 33, 12, 2, BLACK);
-    M5.Lcd.fillRoundRect(277, 9, (batPercentage) / 3.2, 10, 2, GREEN);
-    M5.Lcd.setCursor(240, 14);
-    M5.Lcd.setTextColor(GREEN, BLACK);
-    M5.Lcd.print(batPercentage, 0);
-    M5.Lcd.println("% ");
+    batteryColor = GREEN;
   }
 
+  // Batterieanzeige zeichnen
+  M5.Lcd.fillRoundRect(276, 8, 33, 12, 2, BLACK);  // Hintergrund löschen
+  M5.Lcd.drawRoundRect(275, 7, 35, 14, 3, GREENYELLOW);
+  M5.Lcd.drawRoundRect(309, 11, 4, 6, 2, GREENYELLOW);
+  //M5.Lcd.fillRoundRect(277, 9, (batPercentage / 3.2), 10, 2, batteryColor);
+
+  M5.Lcd.setCursor(240, 14);
+  M5.Lcd.setTextColor(batteryColor, BLACK);
+  M5.Lcd.print(batPercentage, 0);
+  M5.Lcd.print("% ");
+
   //LOAD BATTERY
-  M5.Lcd.drawRoundRect(275, 7, 35, 14, 2, GREENYELLOW);
-  M5.Lcd.drawRoundRect(309, 10, 4, 7, 2, GREENYELLOW);
-  if (M5.Axp.isACIN()) {
+
+  if (isCharging) {
     M5.Lcd.fillRoundRect(276, 8, 33, 12, 2, BLACK);
-    M5.Lcd.fillRoundRect(277, 9, (batPercentage) / 3.2, 10, 1, GREEN);
+    M5.Lcd.fillRoundRect(277, 9, (batPercentage / 3.2), 10, 2, batteryColor);
+    //M5.Lcd.fillRoundRect(277, 9, (batPercentage) / 3.2, 10, 1, GREEN);
     M5.Lcd.fillTriangle(291, 14, 288, 14, 295, 7, RED);
     M5.Lcd.fillTriangle(296, 13, 291, 13, 289, 20, RED);
   }
@@ -1442,45 +1446,42 @@ void loop() {
   M5.Lcd.setCursor(16, 222);
 
   // how long to the destination
-  if (((TinyGPSPlus::distanceBetween(gps.location.lat(), gps.location.lng(), homeLat, homeLon) / 1000) / 3) * 60 > 4200) {
-    M5.Lcd.fillRect(12, 222, 80, 9, BLACK);
-    M5.Lcd.setTextColor(YELLOW, BLACK);
-    M5.Lcd.print(((TinyGPSPlus::distanceBetween(gps.location.lat(), gps.location.lng(), homeLat, homeLon) / 1000) / 3) / 10, 1);
+  // Entfernung zur Ziel-Destination berechnen
+  float distance_km = TinyGPSPlus::distanceBetween(gps.location.lat(), gps.location.lng(), homeLat, homeLon) / 1000;
+  float speed_kmh = 3;                              // Geschwindigkeit in km/h
+  float hours_per_day = 8;                          // Anzahl der Stunden, die pro Tag gelaufen wird
+  float speed_per_day = speed_kmh * hours_per_day;  // Tagesdistanz
+
+  float travel_time_hours = distance_km / speed_kmh;     // Zeit in Stunden
+  float travel_time_days = distance_km / speed_per_day;  // Zeit in Tagen
+  float travel_time_minutes = travel_time_hours * 60;
+
+  M5.Lcd.fillRect(12, 222, 80, 9, BLACK);
+  M5.Lcd.setTextColor(YELLOW, BLACK);
+
+  if (travel_time_days > 1.5) {
+    M5.Lcd.print(travel_time_days, 1);
     M5.Lcd.print(" DAYS");
-  } else if (((TinyGPSPlus::distanceBetween(gps.location.lat(), gps.location.lng(), homeLat, homeLon) / 1000) / 3) * 60 == 600) {
-    M5.Lcd.fillRect(12, 222, 80, 9, BLACK);
-    M5.Lcd.setTextColor(YELLOW, BLACK);
-    M5.Lcd.print(((TinyGPSPlus::distanceBetween(gps.location.lat(), gps.location.lng(), homeLat, homeLon) / 1000) / 3) / 10, 1);
+  } else if (travel_time_days >= 1) {
+    M5.Lcd.print(travel_time_days, 1);
     M5.Lcd.print(" DAY");
-  } else if (((TinyGPSPlus::distanceBetween(gps.location.lat(), gps.location.lng(), homeLat, homeLon) / 1000) / 3) * 60 >= 600) {
-    M5.Lcd.fillRect(12, 222, 80, 9, BLACK);
-    M5.Lcd.setTextColor(YELLOW, BLACK);
-    M5.Lcd.print(((TinyGPSPlus::distanceBetween(gps.location.lat(), gps.location.lng(), homeLat, homeLon) / 1000) / 3) / 10, 1);
-    M5.Lcd.print(" DAYS");
-  } else if (((TinyGPSPlus::distanceBetween(gps.location.lat(), gps.location.lng(), homeLat, homeLon) / 1000) / 3) * 60 == 60) {
-    M5.Lcd.fillRect(12, 222, 80, 9, BLACK);
-    M5.Lcd.setTextColor(YELLOW, BLACK);
-    M5.Lcd.print((TinyGPSPlus::distanceBetween(gps.location.lat(), gps.location.lng(), homeLat, homeLon) / 1000) / 3, 2);
-    M5.Lcd.print(" HOUR");
-  } else if (((TinyGPSPlus::distanceBetween(gps.location.lat(), gps.location.lng(), homeLat, homeLon) / 1000) / 3) * 60 > 60) {
-    M5.Lcd.fillRect(12, 222, 80, 9, BLACK);
-    M5.Lcd.setTextColor(YELLOW, BLACK);
-    M5.Lcd.print((TinyGPSPlus::distanceBetween(gps.location.lat(), gps.location.lng(), homeLat, homeLon) / 1000) / 3, 2);
+  } else if (travel_time_hours >= 1.5) {
+    M5.Lcd.print(travel_time_hours, 1);
     M5.Lcd.print(" HOURS");
-  } else if (((TinyGPSPlus::distanceBetween(gps.location.lat(), gps.location.lng(), homeLat, homeLon) / 1000) / 3) * 60 > 1.5) {
-    M5.Lcd.fillRect(12, 222, 80, 9, BLACK);
-    M5.Lcd.setTextColor(YELLOW, BLACK);
-    M5.Lcd.print(((TinyGPSPlus::distanceBetween(gps.location.lat(), gps.location.lng(), homeLat, homeLon) / 1000) / 3) * 60, 0);
+  } else if (travel_time_hours >= 1) {
+    M5.Lcd.print(travel_time_hours, 1);
+    M5.Lcd.print(" HOUR");
+  } else if (travel_time_minutes > 1.5) {
+    M5.Lcd.print(travel_time_minutes, 0);
     M5.Lcd.print(" MINUTES");
-  } else if (((TinyGPSPlus::distanceBetween(gps.location.lat(), gps.location.lng(), homeLat, homeLon) / 1000) / 3) * 60 >= 0.5) {
-    M5.Lcd.fillRect(12, 222, 80, 9, BLACK);
-    M5.Lcd.setTextColor(YELLOW, BLACK);
-    M5.Lcd.print(((TinyGPSPlus::distanceBetween(gps.location.lat(), gps.location.lng(), homeLat, homeLon) / 1000) / 3) * 60, 0);
+  } else if (travel_time_minutes >= 0.5) {
+    M5.Lcd.print(travel_time_minutes, 0);
     M5.Lcd.print(" MINUTE");
-  } else if (((TinyGPSPlus::distanceBetween(gps.location.lat(), gps.location.lng(), homeLat, homeLon) / 1000) / 3) * 60 <= 0.5) {
+  } else {
     M5.Lcd.setTextColor(GREEN, BLACK);
     M5.Lcd.print(" DESTINATION");
   }
+
   float currentLat = gps.location.lat();
   float currentLon = gps.location.lng();
 
@@ -1512,6 +1513,14 @@ void loop() {
       lastCountry = country;
     }
   }
+  Serial.print(F("Sats="));
+  Serial.print(gps.satellites.value());
+  Serial.print(F(" Nums="));
+  for (int i = 0; i < MAX_SATELLITES; ++i)
+    if (sats[i].active) {
+      Serial.print(i + 1);
+      Serial.print(F(" "));
+    }
 }
 //LOOP END
 void displaySavedLocation() {
