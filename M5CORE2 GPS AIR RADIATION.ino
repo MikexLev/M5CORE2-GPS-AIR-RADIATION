@@ -148,6 +148,14 @@ TinyGPSCustom elevation[4];
 TinyGPSCustom azimuth[4];
 TinyGPSCustom snr[4];
 
+TinyGPSCustom prn[] = {
+  TinyGPSCustom(gps, "GPGSV", 4),
+  TinyGPSCustom(gps, "GPGSV", 8),
+  TinyGPSCustom(gps, "GPGSV", 12),
+  TinyGPSCustom(gps, "GPGSV", 16)
+};
+
+// Satelliten-Datenstruktur
 struct {
   bool active;
   int prn;  // PRN-Nummer des Satelliten
@@ -304,7 +312,7 @@ void setup() {
   }
 
   ads.setGain(GAIN_ONE);  // Verstärkung setzen (1x = ±4.096V)
-
+ 
   // Initialisiere den Rate-Puffer mit neutralen Y-Werten (mittlere Höhe)
   for (int i = 0; i < RATE_GRAPH_WIDTH; i++) {
     rateGraphBuffer[i] = 90;  // Setze Startwert auf die Mitte des Bereichs
@@ -982,6 +990,7 @@ void loop() {
   M5.Lcd.drawLine(129, 44, 193, 108, DARKGREEN);
   M5.Lcd.drawLine(128, 109, 193, 44, DARKGREEN);
 
+
 // SAT DISPLAY
 int activeSatellites = 0;
 for (int i = 0; i < MAX_SATELLITES; ++i) {
@@ -1002,19 +1011,24 @@ if (activeSatellites > 0) {
       int x = centerX - (sin(az_r) * e);  // Spiegelung auf die andere Seite
       int y = centerY - (cos(az_r) * e);
 
-      // PRN-basierte Farbauswahl:
-      uint16_t circleColor;
-      int prn = sats[i].snr; // Annahme, dass PRN die SNR-Nummer ist
-      if (prn >= 1 && prn <= 32) {
-        circleColor = BLUE;  // GPS-Satelliten (PRN 1 bis 32)
-      } else if (prn >= 33 && prn <= 64) {
-        circleColor = RED;  // GLONASS-Satelliten (PRN 33 bis 64)
-      } else if (prn >= 65 && prn <= 96) {
-        circleColor = GREEN;  // Galileo-Satelliten (PRN 65 bis 96)
-      } else {
-        circleColor = YELLOW;  // Bezeichne alle anderen als Standard-Gelb
-      }
+     // PRN-basierte Farbauswahl:
+uint16_t circleColor;
+int prn = sats[i].snr;  // Annahme, dass PRN die SNR-Nummer ist
 
+// Falls PRN größer als 40 ist, überspringe diesen Satelliten
+if (prn > 40) {
+    continue;  // Überspringt die aktuelle Iteration der Schleife
+}
+
+if (prn >= 1 && prn <= 10) {
+    circleColor = DARKGREEN;  // GPS-Satelliten (PRN 1 bis 20)
+} else if (prn >= 11 && prn <= 20) {
+    circleColor = GREEN;  // GLONASS-Satelliten (PRN 21 bis 30)
+} else if (prn >= 21 && prn <= 30) {
+    circleColor = GREENYELLOW;  // Galileo-Satelliten (PRN 31 bis 40)
+} else if (prn >= 31 && prn <= 40) {
+    circleColor = YELLOW;  // Galileo-Satelliten (PRN 31 bis 40)
+}
       // Falls alter Punkt existiert, löschen
       if (oldX[i] > 0 && oldY[i] > 0) {
         // Lösche den alten Kreis
@@ -1023,17 +1037,17 @@ if (activeSatellites > 0) {
       }
 
       // Größe des Kreises basierend auf SNR anpassen (größere Kreise für bessere SNR)
-      int circleSize = map(sats[i].snr, 1, 40, 2, 6);  // SNR zwischen 20 und 60 auf eine Größe von 5 bis 12 anpassen
+      int circleSize = map(sats[i].snr, 1, 40, 2, 8);  // SNR zwischen 20 und 60 auf eine Größe von 5 bis 12 anpassen
 
       // Zeichne den neuen Kreis
       M5.Lcd.drawCircle(x, y, circleSize, circleColor);  // Äußeren Kreis zeichnen
-      M5.Lcd.fillCircle(x, y, circleSize / 3, CYAN);    // Inneren Kreis zeichnen (kleiner als der äußere Kreis)
+      M5.Lcd.fillCircle(x, y, 1, WHITE);    // Inneren Kreis zeichnen (kleiner als der äußere Kreis)
 
       // Neue Position und Größe speichern
       oldX[i] = x;
       oldY[i] = y;
       oldCircleSize1[i] = circleSize;
-      oldCircleSize2[i] = circleSize / 3;  // Innerer Kreis ist kleiner als der äußere
+      oldCircleSize2[i] = 1;  // Innerer Kreis ist kleiner als der äußere
     } else {
       // Falls Satellit nicht mehr aktiv ist, alten Punkt löschen
       if (oldX[i] > 0 && oldY[i] > 0) {
@@ -1045,6 +1059,8 @@ if (activeSatellites > 0) {
     }
   }
 }
+
+
 
 
 
