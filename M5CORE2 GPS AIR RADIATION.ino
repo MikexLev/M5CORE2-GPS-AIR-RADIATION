@@ -12,6 +12,9 @@
 #include "moonPhase.h"
 moonPhase moon;  // Diese Zeile vor der ersten Nutzung deklarieren!
 
+float lastPressure = -1;  // -1 statt 0, damit der erste Vergleich funktioniert
+String lastWeatherIcon = "";
+String lastArrowIcon = "";
 bool selectingCountry = true;
 bool selectingCity = false;
 
@@ -260,32 +263,52 @@ void IRAM_ATTR countPulse() {
 unsigned long lastUpdateTime = 0;            // Letztes Update der Mondphase
 const unsigned long updateInterval = 60000;  // 60 Sekunden für das Mondphase-Update
 
-// Funktion zur Berechnung der Sommerzeit und UTC+1/UTC+2
 int calculateCET(TinyGPSDate &date, TinyGPSTime &time) {
+  int year = date.year();
   int month = date.month();
   int day = date.day();
 
-  // Wochentag berechnen (0 = Sonntag, 1 = Montag, ... nach Zeller's Kongruenz)
-  int k = day;
-  int m = (month < 3) ? month + 12 : month;  // Januar und Februar auf 13 und 14 verschieben
-  int d = date.year() % 100;                 // Letzte zwei Stellen des Jahres
-  int c = date.year() / 100;                 // Hunderter des Jahres
-  int weekday = (k + (13 * (m + 1)) / 5 + d + (d / 4) + (c / 4) - (2 * c)) % 7;
-  weekday = (weekday + 7) % 7;  // Korrektur für negative Werte
+  // Zeller's Kongruenz zur Berechnung des Wochentags (0 = Samstag, 1 = Sonntag, ..., 6 = Freitag)
+  int m = month;
+  int y = year;
+
+  if (m < 3) {
+    m += 12;
+    y -= 1;
+  }
+
+  int k = y % 100;
+  int c = y / 100;
+  int weekday = (day + (13 * (m + 1)) / 5 + k + (k / 4) + (c / 4) - (2 * c)) % 7;
+  weekday = (weekday + 6) % 7;  // Anpassen: 0 = Sonntag, 1 = Montag, ..., 6 = Samstag
+
+  // Funktion zum Berechnen des letzten Sonntags eines Monats
+  auto getLastSunday = [](int y, int m) -> int {
+    // Ersten Tag des nächsten Monats berechnen
+    int nextMonth = (m == 12) ? 1 : m + 1;
+    int nextYear = (m == 12) ? y + 1 : y;
+    struct tm firstNextMonth = { 0, 0, 0, 1, nextMonth - 1, nextYear - 1900 };
+    time_t firstNextMonthTime = mktime(&firstNextMonth);
+    time_t lastSundayTime = firstNextMonthTime - (24 * 3600);  // Einen Tag zurück
+
+    while (localtime(&lastSundayTime)->tm_wday != 0) {  // Bis Sonntag gefunden wird
+      lastSundayTime -= 24 * 3600;
+    }
+
+    return localtime(&lastSundayTime)->tm_mday;
+  };
 
   // Sommerzeit: Letzter Sonntag im März bis letzter Sonntag im Oktober
-  if (month > 3 && month < 10) {
-    return 2;               // Sommerzeit (UTC+2)
-  } else if (month == 3) {  // Letzter Sonntag im März
-    int lastSunday = 31 - weekday;
-    return (day >= lastSunday) ? 2 : 1;  // Ab letztem Sonntag Sommerzeit
-  } else if (month == 10) {              // Letzter Sonntag im Oktober
-    int lastSunday = 31 - weekday;
-    return (day < lastSunday) ? 2 : 1;  // Nach letztem Sonntag Winterzeit
+  int lastSundayMarch = getLastSunday(year, 3);
+  int lastSundayOctober = getLastSunday(year, 10);
+
+  if ((month > 3 && month < 10) || (month == 3 && day >= lastSundayMarch) || (month == 10 && day < lastSundayOctober)) {
+    return 2;  // Sommerzeit (UTC+2)
   } else {
     return 1;  // Winterzeit (UTC+1)
   }
 }
+
 
 void setup() {
   Serial.begin(115200);
@@ -297,11 +320,8 @@ void setup() {
 
   Wire.begin(32, 33);
 
-  if (!bme.begin()) {
-    Serial.println("BME280 nicht gefunden!");
-  } else {
-    Serial.println("BME280 erfolgreich verbunden.");
-  }
+  bme.begin();                                // Sensor initialisieren
+  lastPressure = bme.getPressure_HP() / 100;  // Ersten Druckwert setzen
 
   ss.begin(GPSBaud);
   // I2C Initialisierung
@@ -312,7 +332,7 @@ void setup() {
   }
 
   ads.setGain(GAIN_ONE);  // Verstärkung setzen (1x = ±4.096V)
- 
+
   // Initialisiere den Rate-Puffer mit neutralen Y-Werten (mittlere Höhe)
   for (int i = 0; i < RATE_GRAPH_WIDTH; i++) {
     rateGraphBuffer[i] = 90;  // Setze Startwert auf die Mitte des Bereichs
@@ -531,7 +551,7 @@ void displayValues(float doseRate, float averageDose) {
 
   M5.Lcd.setTextSize(1);
   M5.Lcd.setCursor(227, 31);
-  M5.Lcd.setTextColor(DARKCYAN, BLACK);
+  M5.Lcd.setTextColor(LIGHTGREY, BLACK);
   M5.Lcd.print("DR:");
   if (doseRate > 99) {
     doseRate = 99;
@@ -540,7 +560,7 @@ void displayValues(float doseRate, float averageDose) {
   M5.Lcd.printf("%.2f uSv/h", doseRate);
 
   M5.Lcd.setCursor(227, 82);
-  M5.Lcd.setTextColor(DARKCYAN, BLACK);
+  M5.Lcd.setTextColor(LIGHTGREY, BLACK);
   M5.Lcd.print("AD:");
   if (averageDose > 99) {
     averageDose = 99;
@@ -594,68 +614,109 @@ void printStr(const char *str, int len) {
     Serial.print(i < slen ? str[i] : ' ');  // Falls der String kürzer als len ist, Leerzeichen hinzufügen
   }
 }
-// Globale Variable für das zuletzt gezeichnete Wetter-Icon
-String lastWeatherIcon = "";
+
 
 // Funktion zum Aktualisieren des Icons
 void updateWeatherIcon(const String &newIcon) {
   if (newIcon != lastWeatherIcon) {
     M5.Lcd.fillRoundRect(100, 26, 24, 24, 4, BLACK);
-    M5.Lcd.drawPngFile(SD, newIcon.c_str(), 100, 26);
+    if (SD.exists(newIcon.c_str())) {
+      M5.Lcd.drawPngFile(SD, newIcon.c_str(), 100, 26);
+    } else {
+      Serial.print("Fehler: Wetter-Icon nicht gefunden -> ");
+      Serial.println(newIcon);
+    }
     lastWeatherIcon = newIcon;
   }
 }
 
-// Funktion zum Aktualisieren der Wetteranzeige
+// Funktion zum Aktualisieren des Pfeil-Icons für Luftdrucktendenz
+void updateArrowIcon(const String &arrowIcon) {
+  if (arrowIcon != lastArrowIcon) {
+    M5.Lcd.fillRect(82, 54, 9, 9, BLACK);
+
+    if (!arrowIcon.isEmpty() && SD.exists(arrowIcon.c_str())) {
+      M5.Lcd.drawPngFile(SD, arrowIcon.c_str(), 81, 53);
+    } else {
+      Serial.print("Fehler: Pfeil-Icon nicht gefunden -> ");
+      Serial.println(arrowIcon);
+    }
+
+    lastArrowIcon = arrowIcon;
+  }
+}
+// Funktion zum Aktualisieren der Wetteranzeige mit Druck-Tendenz
 void updateWeatherDisplay() {
   bme.readSensor();
+
+  float pressure = bme.getPressure_HP() / 100;
+  String weatherIcon;
+  String arrowIcon = lastArrowIcon;  // Standardmäßig das letzte Icon behalten
+
   M5.Lcd.setTextSize(1);
   M5.Lcd.drawRoundRect(12, 31, 82, 11, 2, 0x00AF);
   M5.Lcd.setCursor(16, 33);
-  M5.Lcd.setTextColor(DARKCYAN, BLACK);
+  M5.Lcd.setTextColor(LIGHTGREY, BLACK);
   M5.Lcd.print("T:");
   M5.Lcd.setTextColor(CYAN, BLACK);
   M5.Lcd.print(bme.getTemperature_C(), 1);
-  M5.Lcd.print(" \xF7");
-  M5.Lcd.println("C  ");
+  M5.Lcd.println(" C");
   M5.Lcd.drawRoundRect(12, 42, 82, 11, 2, 0x00AF);
   M5.Lcd.setCursor(16, 44);
-  M5.Lcd.setTextColor(DARKCYAN, BLACK);
+  M5.Lcd.setTextColor(LIGHTGREY, BLACK);
   M5.Lcd.print("H:");
   M5.Lcd.setTextColor(CYAN, BLACK);
   M5.Lcd.print(bme.getHumidity(), 0);
-  M5.Lcd.println(" %  ");
+  M5.Lcd.println(" %");
   M5.Lcd.drawRoundRect(12, 53, 82, 11, 2, 0x00AF);
   M5.Lcd.drawRoundRect(12, 64, 82, 12, 2, 0x00AF);
-
-  String weatherIcon;
-  float pressure = bme.getPressure_HP() / 100;
-
-  M5.Lcd.setCursor(16, 67);  // Cursor einmal setzen
-
+  M5.Lcd.setCursor(16, 55);
+  M5.Lcd.setTextColor(LIGHTGREY, BLACK);
+  M5.Lcd.print("P:");
+  M5.Lcd.setTextColor(CYAN, BLACK);
+  M5.Lcd.print(pressure, 0);
+  M5.Lcd.println(" HPa");
+  M5.Lcd.setCursor(16, 67);
   if (pressure <= 970) {
     M5.Lcd.print(">> STORM <<");
     weatherIcon = "/weather/05.png";
   } else if (pressure <= 1001) {
-    if (bme.getTemperature_C() > 1) {
-      M5.Lcd.print(" >> RAIN <<");
-      weatherIcon = "/weather/04.png";
-    } else {
-      M5.Lcd.print(" >> SNOW <<");
-      weatherIcon = "/weather/03.png";
-    }
+    weatherIcon = (bme.getTemperature_C() > 1) ? "/weather/04.png" : "/weather/03.png";
   } else if (pressure <= 1010) {
     M5.Lcd.print("> OVERCAST <");
     weatherIcon = "/weather/02.png";
   } else if (pressure <= 1020) {
     M5.Lcd.print(">> CLOUDY <<");
     weatherIcon = "/weather/01.png";
-  } else {  // Alles über 1020 hPa als "CLEAR" behandeln
-    M5.Lcd.print(">>  CLEAR <<");
+  } else {
+    M5.Lcd.print(">> CLEAR <<");
     weatherIcon = "/weather/00.png";
   }
+
+  // Druck-Trend bestimmen
+  if (lastPressure >= 0) {
+    float pressureDiff = pressure - lastPressure;  // Differenz berechnen
+
+    if (abs(pressureDiff) >= 0.5) {  // Nur ändern, wenn Unterschied ≥ 0.5 hPa
+      if (pressureDiff > 0) {
+        arrowIcon = "/icons/up.png";
+      } else {
+        arrowIcon = "/icons/down.png";
+      }
+    }
+  }
+
+  // Icons aktualisieren
   updateWeatherIcon(weatherIcon);
+  updateArrowIcon(arrowIcon);
+
+  // Letzten Druckwert speichern
+  lastPressure = pressure;
 }
+
+
+
+
 
 void loop() {
   M5.update();  // Touch-Events aktualisieren
@@ -991,74 +1052,74 @@ void loop() {
   M5.Lcd.drawLine(128, 109, 193, 44, DARKGREEN);
 
 
-// SAT DISPLAY
-int activeSatellites = 0;
-for (int i = 0; i < MAX_SATELLITES; ++i) {
-  if (sats[i].active) {
-    activeSatellites++;
-  }
-}
-
-// Falls Satelliten aktiv sind, Position berechnen
-if (activeSatellites > 0) {
-  int centerX = 161, centerY = 76;
-  float rad_fac = 3.14159265359 / 180;
-
+  // SAT DISPLAY
+  int activeSatellites = 0;
   for (int i = 0; i < MAX_SATELLITES; ++i) {
-    if (sats[i].active && sats[i].snr > 1) {  // Prüfen, ob Satellit gültig ist
-      float az_r = sats[i].azimuth * rad_fac;
-      float e = 42 * (90 - sats[i].elevation / 2) / 90;
-      int x = centerX - (sin(az_r) * e);  // Spiegelung auf die andere Seite
-      int y = centerY - (cos(az_r) * e);
+    if (sats[i].active) {
+      activeSatellites++;
+    }
+  }
 
-     // PRN-basierte Farbauswahl:
-uint16_t circleColor;
-int prn = sats[i].snr;  // Annahme, dass PRN die SNR-Nummer ist
+  // Falls Satelliten aktiv sind, Position berechnen
+  if (activeSatellites > 0) {
+    int centerX = 161, centerY = 76;
+    float rad_fac = 3.14159265359 / 180;
 
-// Falls PRN größer als 40 ist, überspringe diesen Satelliten
-if (prn > 40) {
-    continue;  // Überspringt die aktuelle Iteration der Schleife
-}
+    for (int i = 0; i < MAX_SATELLITES; ++i) {
+      if (sats[i].active && sats[i].snr > 1) {  // Prüfen, ob Satellit gültig ist
+        float az_r = sats[i].azimuth * rad_fac;
+        float e = 42 * (90 - sats[i].elevation / 2) / 90;
+        int x = centerX - (sin(az_r) * e);  // Spiegelung auf die andere Seite
+        int y = centerY - (cos(az_r) * e);
 
-if (prn >= 1 && prn <= 10) {
-    circleColor = DARKGREEN;  // GPS-Satelliten (PRN 1 bis 20)
-} else if (prn >= 11 && prn <= 20) {
-    circleColor = GREEN;  // GLONASS-Satelliten (PRN 21 bis 30)
-} else if (prn >= 21 && prn <= 30) {
-    circleColor = GREENYELLOW;  // Galileo-Satelliten (PRN 31 bis 40)
-} else if (prn >= 31 && prn <= 40) {
-    circleColor = YELLOW;  // Galileo-Satelliten (PRN 31 bis 40)
-}
-      // Falls alter Punkt existiert, löschen
-      if (oldX[i] > 0 && oldY[i] > 0) {
-        // Lösche den alten Kreis
-        M5.Lcd.drawCircle(oldX[i], oldY[i], oldCircleSize1[i], BLACK);  // Äußeren Kreis löschen
-        M5.Lcd.fillCircle(oldX[i], oldY[i], oldCircleSize2[i], BLACK);   // Inneren Kreis löschen
-      }
+        // PRN-basierte Farbauswahl:
+        uint16_t circleColor;
+        int prn = sats[i].snr;  // Annahme, dass PRN die SNR-Nummer ist
 
-      // Größe des Kreises basierend auf SNR anpassen (größere Kreise für bessere SNR)
-      int circleSize = map(sats[i].snr, 1, 40, 2, 8);  // SNR zwischen 20 und 60 auf eine Größe von 5 bis 12 anpassen
+        // Falls PRN größer als 40 ist, überspringe diesen Satelliten
+        if (prn > 40) {
+          continue;  // Überspringt die aktuelle Iteration der Schleife
+        }
 
-      // Zeichne den neuen Kreis
-      M5.Lcd.drawCircle(x, y, circleSize, circleColor);  // Äußeren Kreis zeichnen
-      M5.Lcd.fillCircle(x, y, 1, WHITE);    // Inneren Kreis zeichnen (kleiner als der äußere Kreis)
+        if (prn >= 1 && prn <= 10) {
+          circleColor = DARKGREEN;  // GPS-Satelliten (PRN 1 bis 20)
+        } else if (prn >= 11 && prn <= 20) {
+          circleColor = GREEN;  // GLONASS-Satelliten (PRN 21 bis 30)
+        } else if (prn >= 21 && prn <= 30) {
+          circleColor = GREENYELLOW;  // Galileo-Satelliten (PRN 31 bis 40)
+        } else if (prn >= 31 && prn <= 40) {
+          circleColor = YELLOW;  // Galileo-Satelliten (PRN 31 bis 40)
+        }
+        // Falls alter Punkt existiert, löschen
+        if (oldX[i] > 0 && oldY[i] > 0) {
+          // Lösche den alten Kreis
+          M5.Lcd.drawCircle(oldX[i], oldY[i], oldCircleSize1[i], BLACK);  // Äußeren Kreis löschen
+          M5.Lcd.fillCircle(oldX[i], oldY[i], oldCircleSize2[i], BLACK);  // Inneren Kreis löschen
+        }
 
-      // Neue Position und Größe speichern
-      oldX[i] = x;
-      oldY[i] = y;
-      oldCircleSize1[i] = circleSize;
-      oldCircleSize2[i] = 1;  // Innerer Kreis ist kleiner als der äußere
-    } else {
-      // Falls Satellit nicht mehr aktiv ist, alten Punkt löschen
-      if (oldX[i] > 0 && oldY[i] > 0) {
-        M5.Lcd.drawCircle(oldX[i], oldY[i], oldCircleSize1[i], BLACK);  // Äußeren Kreis löschen
-        M5.Lcd.fillCircle(oldX[i], oldY[i], oldCircleSize2[i], BLACK);   // Inneren Kreis löschen
-        oldX[i] = oldY[i] = -1;  // Setze auf -1 statt 0, um Probleme zu vermeiden
-        oldCircleSize1[i] = oldCircleSize2[i] = 0;  // Lösche gespeicherte Werte
+        // Größe des Kreises basierend auf SNR anpassen (größere Kreise für bessere SNR)
+        int circleSize = map(sats[i].snr, 1, 40, 2, 8);  // SNR zwischen 20 und 60 auf eine Größe von 5 bis 12 anpassen
+
+        // Zeichne den neuen Kreis
+        M5.Lcd.drawCircle(x, y, circleSize, circleColor);  // Äußeren Kreis zeichnen
+        M5.Lcd.fillCircle(x, y, 1, WHITE);                 // Inneren Kreis zeichnen (kleiner als der äußere Kreis)
+
+        // Neue Position und Größe speichern
+        oldX[i] = x;
+        oldY[i] = y;
+        oldCircleSize1[i] = circleSize;
+        oldCircleSize2[i] = 1;  // Innerer Kreis ist kleiner als der äußere
+      } else {
+        // Falls Satellit nicht mehr aktiv ist, alten Punkt löschen
+        if (oldX[i] > 0 && oldY[i] > 0) {
+          M5.Lcd.drawCircle(oldX[i], oldY[i], oldCircleSize1[i], BLACK);  // Äußeren Kreis löschen
+          M5.Lcd.fillCircle(oldX[i], oldY[i], oldCircleSize2[i], BLACK);  // Inneren Kreis löschen
+          oldX[i] = oldY[i] = -1;                                         // Setze auf -1 statt 0, um Probleme zu vermeiden
+          oldCircleSize1[i] = oldCircleSize2[i] = 0;                      // Lösche gespeicherte Werte
+        }
       }
     }
   }
-}
 
 
 
@@ -1188,13 +1249,8 @@ if (prn >= 1 && prn <= 10) {
 
   updateWeatherDisplay();
 
-  M5.Lcd.setCursor(16, 55);
-  M5.Lcd.setTextColor(DARKCYAN, BLACK);
-  M5.Lcd.print("P:");
-  M5.Lcd.setTextColor(CYAN, BLACK);
-  M5.Lcd.print(bme.getPressure_HP() / 100, 0);
-  M5.Lcd.println(" HPa  ");
-  M5.Lcd.drawFastHLine(8, 76, 90, BLUE);
+
+
   int16_t raw_CO = ads.readADC_SingleEnded(0);   // Kanal A0 = CO
   int16_t raw_NH3 = ads.readADC_SingleEnded(1);  // Kanal A1 = NH3
   int16_t raw_NO2 = ads.readADC_SingleEnded(2);  // Kanal A2 = NO2
@@ -1217,7 +1273,7 @@ if (prn >= 1 && prn <= 10) {
   if (CO > 20) {
     M5.Lcd.drawRoundRect(12, 77, 82, 11, 2, RED);
     M5.Lcd.setCursor(14, 79);
-    M5.Lcd.setTextColor(DARKCYAN, BLACK);
+    M5.Lcd.setTextColor(LIGHTGREY, BLACK);
     M5.Lcd.print("CO :");
     M5.Lcd.setTextColor(RED, BLACK);
     M5.Lcd.print(CO);
@@ -1225,7 +1281,7 @@ if (prn >= 1 && prn <= 10) {
   } else if (CO > 10) {
     M5.Lcd.drawRoundRect(12, 77, 82, 11, 2, ORANGE);
     M5.Lcd.setCursor(14, 79);
-    M5.Lcd.setTextColor(DARKCYAN, BLACK);
+    M5.Lcd.setTextColor(LIGHTGREY, BLACK);
     M5.Lcd.print("CO :");
     M5.Lcd.setTextColor(ORANGE, BLACK);
     M5.Lcd.print(CO);
@@ -1233,7 +1289,7 @@ if (prn >= 1 && prn <= 10) {
   } else {
     M5.Lcd.drawRoundRect(12, 77, 82, 11, 2, 0x00AF);
     M5.Lcd.setCursor(14, 79);
-    M5.Lcd.setTextColor(DARKCYAN, BLACK);
+    M5.Lcd.setTextColor(LIGHTGREY, BLACK);
     M5.Lcd.print("CO :");
     M5.Lcd.setTextColor(GREEN, BLACK);
     M5.Lcd.print(CO);
@@ -1244,7 +1300,7 @@ if (prn >= 1 && prn <= 10) {
   } else if (NH3 > 15) {
     M5.Lcd.drawRoundRect(12, 88, 82, 11, 2, RED);
     M5.Lcd.setCursor(14, 90);
-    M5.Lcd.setTextColor(DARKCYAN, BLACK);
+    M5.Lcd.setTextColor(LIGHTGREY, BLACK);
     M5.Lcd.print("NH3:");
     M5.Lcd.setTextColor(RED, BLACK);
     M5.Lcd.print(NH3);
@@ -1252,7 +1308,7 @@ if (prn >= 1 && prn <= 10) {
   } else if (NH3 > 5) {
     M5.Lcd.drawRoundRect(12, 88, 82, 11, 2, ORANGE);
     M5.Lcd.setCursor(14, 90);
-    M5.Lcd.setTextColor(DARKCYAN, BLACK);
+    M5.Lcd.setTextColor(LIGHTGREY, BLACK);
     M5.Lcd.print("NH3:");
     M5.Lcd.setTextColor(ORANGE, BLACK);
     M5.Lcd.print(NH3);
@@ -1260,7 +1316,7 @@ if (prn >= 1 && prn <= 10) {
   } else {
     M5.Lcd.drawRoundRect(12, 88, 82, 11, 2, 0x00AF);
     M5.Lcd.setCursor(14, 90);
-    M5.Lcd.setTextColor(DARKCYAN, BLACK);
+    M5.Lcd.setTextColor(LIGHTGREY, BLACK);
     M5.Lcd.print("NH3:");
     M5.Lcd.setTextColor(GREEN, BLACK);
     M5.Lcd.print(NH3);
@@ -1271,7 +1327,7 @@ if (prn >= 1 && prn <= 10) {
   } else if (NO2 > 5) {
     M5.Lcd.drawRoundRect(12, 99, 82, 11, 2, RED);
     M5.Lcd.setCursor(14, 101);
-    M5.Lcd.setTextColor(DARKCYAN, BLACK);
+    M5.Lcd.setTextColor(LIGHTGREY, BLACK);
     M5.Lcd.print("NO2:");
     M5.Lcd.setTextColor(RED, BLACK);
     M5.Lcd.print(NO2);
@@ -1279,7 +1335,7 @@ if (prn >= 1 && prn <= 10) {
   } else if (NO2 > 2) {
     M5.Lcd.drawRoundRect(12, 99, 82, 11, 2, ORANGE);
     M5.Lcd.setCursor(14, 101);
-    M5.Lcd.setTextColor(DARKCYAN, BLACK);
+    M5.Lcd.setTextColor(LIGHTGREY, BLACK);
     M5.Lcd.print("NO2:");
     M5.Lcd.setTextColor(ORANGE, BLACK);
     M5.Lcd.print(NO2);
@@ -1287,7 +1343,7 @@ if (prn >= 1 && prn <= 10) {
   } else {
     M5.Lcd.drawRoundRect(12, 99, 82, 11, 2, 0x00AF);
     M5.Lcd.setCursor(14, 101);
-    M5.Lcd.setTextColor(DARKCYAN, BLACK);
+    M5.Lcd.setTextColor(LIGHTGREY, BLACK);
     M5.Lcd.print("NO2:");
     M5.Lcd.setTextColor(GREEN, BLACK);
     M5.Lcd.print(NO2);
@@ -1298,7 +1354,7 @@ if (prn >= 1 && prn <= 10) {
   } else if (EMF > 40) {
     M5.Lcd.drawRoundRect(12, 110, 82, 11, 2, RED);
     M5.Lcd.setCursor(14, 112);
-    M5.Lcd.setTextColor(DARKCYAN, BLACK);
+    M5.Lcd.setTextColor(LIGHTGREY, BLACK);
     M5.Lcd.print("EMF:");
     M5.Lcd.setTextColor(RED, BLACK);
     M5.Lcd.print(EMF);
@@ -1306,7 +1362,7 @@ if (prn >= 1 && prn <= 10) {
   } else if (EMF > 30) {
     M5.Lcd.drawRoundRect(12, 110, 82, 11, 2, ORANGE);
     M5.Lcd.setCursor(14, 112);
-    M5.Lcd.setTextColor(DARKCYAN, BLACK);
+    M5.Lcd.setTextColor(LIGHTGREY, BLACK);
     M5.Lcd.print("EMF:");
     M5.Lcd.setTextColor(ORANGE, BLACK);
     M5.Lcd.print(EMF);
@@ -1314,7 +1370,7 @@ if (prn >= 1 && prn <= 10) {
   } else {
     M5.Lcd.drawRoundRect(12, 110, 82, 11, 2, 0x00AF);
     M5.Lcd.setCursor(14, 112);
-    M5.Lcd.setTextColor(DARKCYAN, BLACK);
+    M5.Lcd.setTextColor(LIGHTGREY, BLACK);
     M5.Lcd.print("EMF:");
     M5.Lcd.setTextColor(GREEN, BLACK);
     M5.Lcd.print(EMF);
@@ -1371,7 +1427,7 @@ if (prn >= 1 && prn <= 10) {
 
   // LATTITUDE
   M5.Lcd.setTextSize(2);
-  M5.Lcd.setTextColor(DARKCYAN, BLACK);
+  M5.Lcd.setTextColor(LIGHTGREY, BLACK);
   M5.Lcd.setCursor(106, 138);
   M5.Lcd.print("LATT:");
   M5.Lcd.setTextColor(CYAN, BLACK);
@@ -1397,7 +1453,7 @@ if (prn >= 1 && prn <= 10) {
     M5.Lcd.print("---");
   }
   // LONGITUDE
-  M5.Lcd.setTextColor(DARKCYAN, BLACK);
+  M5.Lcd.setTextColor(LIGHTGREY, BLACK);
   M5.Lcd.setCursor(106, 157);
   M5.Lcd.print("LONG:");
   M5.Lcd.setTextColor(CYAN, BLACK);
@@ -1421,7 +1477,7 @@ if (prn >= 1 && prn <= 10) {
     M5.Lcd.print("---");
   }
   // ALTITUDE
-  M5.Lcd.setTextColor(DARKCYAN, BLACK);
+  M5.Lcd.setTextColor(LIGHTGREY, BLACK);
   M5.Lcd.setCursor(106, 176);
   M5.Lcd.print("ALTI:");
   M5.Lcd.setTextColor(CYAN, BLACK);
@@ -1433,7 +1489,7 @@ if (prn >= 1 && prn <= 10) {
     M5.Lcd.print("m    ");
   }
   // SPEED
-  M5.Lcd.setTextColor(DARKCYAN, BLACK);
+  M5.Lcd.setTextColor(LIGHTGREY, BLACK);
   M5.Lcd.setCursor(106, 196);
   M5.Lcd.print("SPED:");
   M5.Lcd.setTextColor(CYAN, BLACK);
@@ -1444,7 +1500,7 @@ if (prn >= 1 && prn <= 10) {
     M5.Lcd.print("km/h    ");
   }
   // HOME DISTANCE
-  M5.Lcd.setTextColor(DARKCYAN, BLACK);
+  M5.Lcd.setTextColor(LIGHTGREY, BLACK);
   M5.Lcd.setCursor(106, 215);
   M5.Lcd.print("HOME:");
   M5.Lcd.setTextColor(CYAN, BLACK);
