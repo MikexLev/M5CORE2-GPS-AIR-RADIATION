@@ -10,7 +10,7 @@
 #include "FONT2.h"
 #include "CITIES.h"
 #include "moonPhase.h"
-moonPhase moon;  // Diese Zeile vor der ersten Nutzung deklarieren!
+moonPhase moon;
 
 float lastPressure = -1;  // -1 statt 0, damit der erste Vergleich funktioniert
 String lastWeatherIcon = "";
@@ -26,6 +26,7 @@ struct tm timeinfo = {};
 
 void updateTimeFromGPS() {
   if (gps.date.isValid() && gps.time.isValid()) {
+    
     // GPS-Daten in `struct tm` speichern
     timeinfo.tm_year = gps.date.year() - 1900;  // tm_year zählt ab 1900
     timeinfo.tm_mon = gps.date.month() - 1;     // tm_mon zählt ab 0 (Jan = 0)
@@ -35,7 +36,7 @@ void updateTimeFromGPS() {
     timeinfo.tm_sec = gps.time.second();
 
     // `struct tm` in UNIX-Zeit umwandeln
-    time_t gps_time = mktime(&timeinfo);
+   time_t gps_time = mktime(&timeinfo);
 
     Serial.printf("GPS-Zeit: %04d-%02d-%02d %02d:%02d:%02d\n",
                   gps.date.year(), gps.date.month(), gps.date.day(),
@@ -168,6 +169,7 @@ struct {
 } sats[MAX_SATELLITES];
 
 bool alarmTriggered = false;
+
 //Vibration und LED-Muster auslösen
 void triggerVibrationPattern(const int pattern[], int len) {
   for (int i = 0; i < len; i++) {
@@ -180,6 +182,7 @@ void triggerVibrationPattern(const int pattern[], int len) {
     }
     delay(pattern[i]);
   }
+  
   // Nach dem Muster sicherstellen, dass alles aus ist
   M5.Axp.SetVibration(false);
   M5.Axp.SetLed(false);
@@ -193,7 +196,6 @@ void showAlarm(const char *pngFile, int textCursorX, int textCursorY, const char
 
   M5.Lcd.drawPngFile(SD, pngFile, 22, 31);
 }
-
 void checkForAlarms(float CO, float NH3, float NO2, float EMF, float radiation) {
   alarmTriggered = false;  // Lokales Flag zurücksetzen
 
@@ -254,10 +256,10 @@ String savedCity = "N/A";
 void updateNearestCity(float latitude, float longitude) {
   findNearestCity(latitude, longitude, savedCity, nearestCountry);
 }
+
 // Interrupt-Funktion: Zähle Geigerzähler-Impulse und setze das Flag
 void IRAM_ATTR countPulse() {
   pulseCount++;  // Impuls zählen
-  //M5.Lcd.fillRect(201, 104, 23, 23, BLACK);  // Lösche alten Wert
   drawBitmapFlag = true;  // Bitmap-Zeichen-Flag setzen
 }
 unsigned long lastUpdateTime = 0;            // Letztes Update der Mondphase
@@ -294,7 +296,6 @@ int calculateCET(TinyGPSDate &date, TinyGPSTime &time) {
     while (localtime(&lastSundayTime)->tm_wday != 0) {  // Bis Sonntag gefunden wird
       lastSundayTime -= 24 * 3600;
     }
-
     return localtime(&lastSundayTime)->tm_mday;
   };
 
@@ -308,7 +309,6 @@ int calculateCET(TinyGPSDate &date, TinyGPSTime &time) {
     return 1;  // Winterzeit (UTC+1)
   }
 }
-
 
 void setup() {
   Serial.begin(115200);
@@ -327,10 +327,8 @@ void setup() {
   // I2C Initialisierung
   if (!ads.begin()) {
     Serial.println("Fehler: ADS1115 nicht gefunden!");
-    while (1)
-      ;
+    while (1);
   }
-
   ads.setGain(GAIN_ONE);  // Verstärkung setzen (1x = ±4.096V)
 
   // Initialisiere den Rate-Puffer mit neutralen Y-Werten (mittlere Höhe)
@@ -432,7 +430,6 @@ void setup() {
     azimuth[i].begin(gps, "GPGSV", 6 + 4 * i);
     snr[i].begin(gps, "GPGSV", 7 + 4 * i);
   }
-
   //GRAPHIC
 
   M5.Lcd.fillScreen(BLACK);
@@ -456,6 +453,7 @@ void setup() {
   M5.Lcd.setCursor(230, 233);
   M5.Lcd.print("> SVALBARD <");
 }
+
 // Funktion zur Berechnung eines Farbverlaufs von Rot (niedrig) nach Grün (hoch)
 uint16_t getGradientColor(float value, float minValue, float maxValue) {
   // Normiere den Wert auf den Bereich [0, 1]
@@ -542,6 +540,7 @@ void drawAverageGraph(float avgDose) {
     } else {
       color = RED;
     }
+    
     // Zeichne die Säule
     M5.Lcd.fillRect(x, y, 4, height, color);
   }
@@ -551,7 +550,7 @@ void displayValues(float doseRate, float averageDose) {
 
   M5.Lcd.setTextSize(1);
   M5.Lcd.setCursor(227, 31);
-  M5.Lcd.setTextColor(LIGHTGREY, BLACK);
+  M5.Lcd.setTextColor(YELLOW, BLACK);
   M5.Lcd.print("DR:");
   if (doseRate > 99) {
     doseRate = 99;
@@ -560,7 +559,7 @@ void displayValues(float doseRate, float averageDose) {
   M5.Lcd.printf("%.2f uSv/h", doseRate);
 
   M5.Lcd.setCursor(227, 82);
-  M5.Lcd.setTextColor(LIGHTGREY, BLACK);
+  M5.Lcd.setTextColor(YELLOW, BLACK);
   M5.Lcd.print("AD:");
   if (averageDose > 99) {
     averageDose = 99;
@@ -571,7 +570,6 @@ void displayValues(float doseRate, float averageDose) {
   M5.Lcd.setTextColor(avgColor, BLACK);
   M5.Lcd.printf("%.2f uSv/h", averageDose);
 }
-
 
 int lastSecond = -1;  // Um Sekundenänderungen zu verfolgen
 
@@ -615,7 +613,6 @@ void printStr(const char *str, int len) {
   }
 }
 
-
 // Funktion zum Aktualisieren des Icons
 void updateWeatherIcon(const String &newIcon) {
   if (newIcon != lastWeatherIcon) {
@@ -645,6 +642,7 @@ void updateArrowIcon(const String &arrowIcon) {
     lastArrowIcon = arrowIcon;
   }
 }
+
 // Funktion zum Aktualisieren der Wetteranzeige mit Druck-Tendenz
 void updateWeatherDisplay() {
   bme.readSensor();
@@ -656,14 +654,14 @@ void updateWeatherDisplay() {
   M5.Lcd.setTextSize(1);
   M5.Lcd.drawRoundRect(12, 31, 82, 11, 2, 0x00AF);
   M5.Lcd.setCursor(16, 33);
-  M5.Lcd.setTextColor(LIGHTGREY, BLACK);
+  M5.Lcd.setTextColor(YELLOW, BLACK);
   M5.Lcd.print("T:");
   M5.Lcd.setTextColor(CYAN, BLACK);
   M5.Lcd.print(bme.getTemperature_C(), 1);
   M5.Lcd.println(" C");
   M5.Lcd.drawRoundRect(12, 42, 82, 11, 2, 0x00AF);
   M5.Lcd.setCursor(16, 44);
-  M5.Lcd.setTextColor(LIGHTGREY, BLACK);
+  M5.Lcd.setTextColor(YELLOW, BLACK);
   M5.Lcd.print("H:");
   M5.Lcd.setTextColor(CYAN, BLACK);
   M5.Lcd.print(bme.getHumidity(), 0);
@@ -671,7 +669,7 @@ void updateWeatherDisplay() {
   M5.Lcd.drawRoundRect(12, 53, 82, 11, 2, 0x00AF);
   M5.Lcd.drawRoundRect(12, 64, 82, 12, 2, 0x00AF);
   M5.Lcd.setCursor(16, 55);
-  M5.Lcd.setTextColor(LIGHTGREY, BLACK);
+  M5.Lcd.setTextColor(YELLOW, BLACK);
   M5.Lcd.print("P:");
   M5.Lcd.setTextColor(CYAN, BLACK);
   M5.Lcd.print(pressure, 0);
@@ -714,10 +712,6 @@ void updateWeatherDisplay() {
   lastPressure = pressure;
 }
 
-
-
-
-
 void loop() {
   M5.update();  // Touch-Events aktualisieren
   //M5.Lcd.fillRect(198, 25, 23, 23, WHITE);  // Lösche alten Wert
@@ -734,6 +728,7 @@ void loop() {
   }
 
   if (gps.date.isValid() && gps.time.isValid()) {
+    
     // Datum und Zeit aus GPS auslesen
     int year = gps.date.year();
     int month = gps.date.month();
@@ -748,8 +743,8 @@ void loop() {
     // Überprüfen, ob es Zeit für ein Update der Mondphase ist
     unsigned long currentMillis = millis();
     if (currentMillis - lastUpdateTime >= updateInterval) {
+      
       // Mondphase berechnen und anzeigen
-      //moonPhase moon;
       time_t gps_time = mktime(&timeinfo);                       // UNIX-Zeit berechnen
       moonData_t moonData = moon.getPhase(gps_time);             // Korrekte Funktion nutzen
       int phaseIndex = (int)(moonData.angle / 360.0 * 28) % 28;  // Umrechnung auf 28 Phasen
@@ -860,6 +855,7 @@ void loop() {
       GPSnotReady = ((gps.location.lat() == 0) && (gps.location.lng() == 0));
     }
   }
+  
   //LAST SAVED COORDINATES
   File myFile = SD.open("/home_coordinates.txt", FILE_READ);
   if (myFile) {
@@ -1090,6 +1086,7 @@ void loop() {
         } else if (prn >= 31 && prn <= 40) {
           circleColor = YELLOW;  // Galileo-Satelliten (PRN 31 bis 40)
         }
+        
         // Falls alter Punkt existiert, löschen
         if (oldX[i] > 0 && oldY[i] > 0) {
           // Lösche den alten Kreis
@@ -1110,6 +1107,7 @@ void loop() {
         oldCircleSize1[i] = circleSize;
         oldCircleSize2[i] = 1;  // Innerer Kreis ist kleiner als der äußere
       } else {
+        
         // Falls Satellit nicht mehr aktiv ist, alten Punkt löschen
         if (oldX[i] > 0 && oldY[i] > 0) {
           M5.Lcd.drawCircle(oldX[i], oldY[i], oldCircleSize1[i], BLACK);  // Äußeren Kreis löschen
@@ -1120,14 +1118,6 @@ void loop() {
       }
     }
   }
-
-
-
-
-
-
-
-
   M5.Lcd.fillRoundRect(17, 148, 72, 72, 2, BLACK);
   double relCourse = courseToHome - gps.course.deg();
   if (relCourse < 0) {
@@ -1249,8 +1239,6 @@ void loop() {
 
   updateWeatherDisplay();
 
-
-
   int16_t raw_CO = ads.readADC_SingleEnded(0);   // Kanal A0 = CO
   int16_t raw_NH3 = ads.readADC_SingleEnded(1);  // Kanal A1 = NH3
   int16_t raw_NO2 = ads.readADC_SingleEnded(2);  // Kanal A2 = NO2
@@ -1273,7 +1261,7 @@ void loop() {
   if (CO > 20) {
     M5.Lcd.drawRoundRect(12, 77, 82, 11, 2, RED);
     M5.Lcd.setCursor(14, 79);
-    M5.Lcd.setTextColor(LIGHTGREY, BLACK);
+    M5.Lcd.setTextColor(YELLOW, BLACK);
     M5.Lcd.print("CO :");
     M5.Lcd.setTextColor(RED, BLACK);
     M5.Lcd.print(CO);
@@ -1281,7 +1269,7 @@ void loop() {
   } else if (CO > 10) {
     M5.Lcd.drawRoundRect(12, 77, 82, 11, 2, ORANGE);
     M5.Lcd.setCursor(14, 79);
-    M5.Lcd.setTextColor(LIGHTGREY, BLACK);
+    M5.Lcd.setTextColor(YELLOW, BLACK);
     M5.Lcd.print("CO :");
     M5.Lcd.setTextColor(ORANGE, BLACK);
     M5.Lcd.print(CO);
@@ -1289,7 +1277,7 @@ void loop() {
   } else {
     M5.Lcd.drawRoundRect(12, 77, 82, 11, 2, 0x00AF);
     M5.Lcd.setCursor(14, 79);
-    M5.Lcd.setTextColor(LIGHTGREY, BLACK);
+    M5.Lcd.setTextColor(YELLOW, BLACK);
     M5.Lcd.print("CO :");
     M5.Lcd.setTextColor(GREEN, BLACK);
     M5.Lcd.print(CO);
@@ -1300,7 +1288,7 @@ void loop() {
   } else if (NH3 > 15) {
     M5.Lcd.drawRoundRect(12, 88, 82, 11, 2, RED);
     M5.Lcd.setCursor(14, 90);
-    M5.Lcd.setTextColor(LIGHTGREY, BLACK);
+    M5.Lcd.setTextColor(YELLOW, BLACK);
     M5.Lcd.print("NH3:");
     M5.Lcd.setTextColor(RED, BLACK);
     M5.Lcd.print(NH3);
@@ -1308,7 +1296,7 @@ void loop() {
   } else if (NH3 > 5) {
     M5.Lcd.drawRoundRect(12, 88, 82, 11, 2, ORANGE);
     M5.Lcd.setCursor(14, 90);
-    M5.Lcd.setTextColor(LIGHTGREY, BLACK);
+    M5.Lcd.setTextColor(YELLOW, BLACK);
     M5.Lcd.print("NH3:");
     M5.Lcd.setTextColor(ORANGE, BLACK);
     M5.Lcd.print(NH3);
@@ -1316,7 +1304,7 @@ void loop() {
   } else {
     M5.Lcd.drawRoundRect(12, 88, 82, 11, 2, 0x00AF);
     M5.Lcd.setCursor(14, 90);
-    M5.Lcd.setTextColor(LIGHTGREY, BLACK);
+    M5.Lcd.setTextColor(YELLOW, BLACK);
     M5.Lcd.print("NH3:");
     M5.Lcd.setTextColor(GREEN, BLACK);
     M5.Lcd.print(NH3);
@@ -1327,7 +1315,7 @@ void loop() {
   } else if (NO2 > 5) {
     M5.Lcd.drawRoundRect(12, 99, 82, 11, 2, RED);
     M5.Lcd.setCursor(14, 101);
-    M5.Lcd.setTextColor(LIGHTGREY, BLACK);
+    M5.Lcd.setTextColor(YELLOW, BLACK);
     M5.Lcd.print("NO2:");
     M5.Lcd.setTextColor(RED, BLACK);
     M5.Lcd.print(NO2);
@@ -1335,7 +1323,7 @@ void loop() {
   } else if (NO2 > 2) {
     M5.Lcd.drawRoundRect(12, 99, 82, 11, 2, ORANGE);
     M5.Lcd.setCursor(14, 101);
-    M5.Lcd.setTextColor(LIGHTGREY, BLACK);
+    M5.Lcd.setTextColor(YELLOW, BLACK);
     M5.Lcd.print("NO2:");
     M5.Lcd.setTextColor(ORANGE, BLACK);
     M5.Lcd.print(NO2);
@@ -1343,7 +1331,7 @@ void loop() {
   } else {
     M5.Lcd.drawRoundRect(12, 99, 82, 11, 2, 0x00AF);
     M5.Lcd.setCursor(14, 101);
-    M5.Lcd.setTextColor(LIGHTGREY, BLACK);
+    M5.Lcd.setTextColor(YELLOW, BLACK);
     M5.Lcd.print("NO2:");
     M5.Lcd.setTextColor(GREEN, BLACK);
     M5.Lcd.print(NO2);
@@ -1354,7 +1342,7 @@ void loop() {
   } else if (EMF > 40) {
     M5.Lcd.drawRoundRect(12, 110, 82, 11, 2, RED);
     M5.Lcd.setCursor(14, 112);
-    M5.Lcd.setTextColor(LIGHTGREY, BLACK);
+    M5.Lcd.setTextColor(YELLOW, BLACK);
     M5.Lcd.print("EMF:");
     M5.Lcd.setTextColor(RED, BLACK);
     M5.Lcd.print(EMF);
@@ -1362,7 +1350,7 @@ void loop() {
   } else if (EMF > 30) {
     M5.Lcd.drawRoundRect(12, 110, 82, 11, 2, ORANGE);
     M5.Lcd.setCursor(14, 112);
-    M5.Lcd.setTextColor(LIGHTGREY, BLACK);
+    M5.Lcd.setTextColor(YELLOW, BLACK);
     M5.Lcd.print("EMF:");
     M5.Lcd.setTextColor(ORANGE, BLACK);
     M5.Lcd.print(EMF);
@@ -1370,7 +1358,7 @@ void loop() {
   } else {
     M5.Lcd.drawRoundRect(12, 110, 82, 11, 2, 0x00AF);
     M5.Lcd.setCursor(14, 112);
-    M5.Lcd.setTextColor(LIGHTGREY, BLACK);
+    M5.Lcd.setTextColor(YELLOW, BLACK);
     M5.Lcd.print("EMF:");
     M5.Lcd.setTextColor(GREEN, BLACK);
     M5.Lcd.print(EMF);
@@ -1414,7 +1402,6 @@ void loop() {
   M5.Lcd.print("% ");
 
   //LOAD BATTERY
-
   if (isCharging) {
     M5.Lcd.fillRoundRect(276, 8, 33, 12, 2, BLACK);
     M5.Lcd.fillRoundRect(277, 9, (batPercentage / 3.2), 10, 2, batteryColor);
@@ -1427,7 +1414,7 @@ void loop() {
 
   // LATTITUDE
   M5.Lcd.setTextSize(2);
-  M5.Lcd.setTextColor(LIGHTGREY, BLACK);
+  M5.Lcd.setTextColor(GREEN, BLACK);
   M5.Lcd.setCursor(106, 138);
   M5.Lcd.print("LATT:");
   M5.Lcd.setTextColor(CYAN, BLACK);
@@ -1453,7 +1440,7 @@ void loop() {
     M5.Lcd.print("---");
   }
   // LONGITUDE
-  M5.Lcd.setTextColor(LIGHTGREY, BLACK);
+  M5.Lcd.setTextColor(GREEN, BLACK);
   M5.Lcd.setCursor(106, 157);
   M5.Lcd.print("LONG:");
   M5.Lcd.setTextColor(CYAN, BLACK);
@@ -1477,7 +1464,7 @@ void loop() {
     M5.Lcd.print("---");
   }
   // ALTITUDE
-  M5.Lcd.setTextColor(LIGHTGREY, BLACK);
+  M5.Lcd.setTextColor(GREEN, BLACK);
   M5.Lcd.setCursor(106, 176);
   M5.Lcd.print("ALTI:");
   M5.Lcd.setTextColor(CYAN, BLACK);
@@ -1489,7 +1476,7 @@ void loop() {
     M5.Lcd.print("m    ");
   }
   // SPEED
-  M5.Lcd.setTextColor(LIGHTGREY, BLACK);
+  M5.Lcd.setTextColor(GREEN, BLACK);
   M5.Lcd.setCursor(106, 196);
   M5.Lcd.print("SPED:");
   M5.Lcd.setTextColor(CYAN, BLACK);
@@ -1500,7 +1487,7 @@ void loop() {
     M5.Lcd.print("km/h    ");
   }
   // HOME DISTANCE
-  M5.Lcd.setTextColor(LIGHTGREY, BLACK);
+  M5.Lcd.setTextColor(GREEN, BLACK);
   M5.Lcd.setCursor(106, 215);
   M5.Lcd.print("HOME:");
   M5.Lcd.setTextColor(CYAN, BLACK);
@@ -1516,9 +1503,7 @@ void loop() {
   }
   M5.Lcd.setTextSize(1);
   M5.Lcd.setCursor(16, 222);
-
   // how long to the destination
-  // Entfernung zur Ziel-Destination berechnen
   float distance_km = TinyGPSPlus::distanceBetween(gps.location.lat(), gps.location.lng(), homeLat, homeLon) / 1000;
   float speed_kmh = 3;                              // Geschwindigkeit in km/h
   float hours_per_day = 8;                          // Anzahl der Stunden, die pro Tag gelaufen wird
@@ -1563,7 +1548,6 @@ void loop() {
   if (currentLat != 0.0 && currentLon != 0.0) {  // Nur wenn GPS gültige Werte liefert
     String city, country;
     findNearestCity(currentLat, currentLon, city, country);  // Ruft Stadt + Land ab
-
     // Überprüfe, ob sich der Name geändert hat
     if (city != lastCity || country != lastCountry) {
       M5.Lcd.fillRect(10, 127, 297, 8, BLACK);
