@@ -1176,14 +1176,7 @@ void loop() {
   printInt(gps.sentencesWithFix(), true, 10);
   printInt(gps.failedChecksum(), true, 9);
 
-  // RADAR DISPLAY
-  M5.Lcd.drawCircle(161, 76, 47, DARKGREEN);
-  M5.Lcd.drawCircle(161, 76, 16, DARKGREEN);
-  M5.Lcd.drawCircle(161, 76, 32, DARKGREEN);
-  M5.Lcd.drawFastHLine(115, 76, 94, DARKGREEN);
-  M5.Lcd.drawFastVLine(161, 30, 94, DARKGREEN);
-  M5.Lcd.drawLine(129, 44, 193, 108, DARKGREEN);
-  M5.Lcd.drawLine(128, 109, 193, 44, DARKGREEN);
+
 
   // SAT DISPLAY
   int activeSatellites = 0;
@@ -1193,68 +1186,92 @@ void loop() {
     }
   }
 
-  // Falls Satelliten aktiv sind, Position berechnen
-  if (gps.location.isValid() && gps.hdop.isValid() && gps.hdop.hdop() < 10 && activeSatellites > 0) {
-    int centerX = 161, centerY = 76;
-    float rad_fac = 3.14159265359 / 180;
+void drawRadarDisplay() {
+  const int centerX = 161, centerY = 76;
+  const float rad_fac = 3.14159265359 / 180;
 
+  // === GPS & Satelliten prüfen ===
+  if (gps.location.isValid() && gps.hdop.isValid() && gps.hdop.hdop() < 10 && activeSatellites > 0) {
+
+    // === RADAR-HINTERGRUND (GRÜN) ===
+    uint16_t radarColor = DARKGREEN;
+    M5.Lcd.drawCircle(centerX, centerY, 47, radarColor);
+    M5.Lcd.drawCircle(centerX, centerY, 16, radarColor);
+    M5.Lcd.drawCircle(centerX, centerY, 32, radarColor);
+    M5.Lcd.drawFastHLine(centerX - 46, centerY, 94, radarColor);
+    M5.Lcd.drawFastVLine(centerX, centerY - 46, 94, radarColor);
+    M5.Lcd.drawLine(129, 44, 193, 108, radarColor);
+    M5.Lcd.drawLine(128, 109, 193, 44, radarColor);
+
+    // === SATELLITEN ZEICHNEN ===
     for (int i = 0; i < MAX_SATELLITES; ++i) {
-      if (sats[i].active && sats[i].snr > 1) {  // Prüfen, ob Satellit gültig ist
+      if (sats[i].active && sats[i].snr > 1) {
         float az_r = sats[i].azimuth * rad_fac;
         float e = 42 * (90 - sats[i].elevation / 2) / 90;
-        int x = centerX - (sin(az_r) * e);  // Spiegelung auf die andere Seite
+        int x = centerX - (sin(az_r) * e);
         int y = centerY - (cos(az_r) * e);
 
-        // PRN-basierte Farbauswahl:
+        // === Farbe nach PRN/SNR bestimmen ===
         uint16_t circleColor;
-        int prn = sats[i].snr;  // Annahme, dass PRN die SNR-Nummer ist
+        int prn = sats[i].snr;
+        if (prn > 40) continue;
 
-        // Falls PRN größer als 40 ist, überspringe diesen Satelliten
-        if (prn > 40) {
-          continue;  // Überspringt die aktuelle Iteration der Schleife
-        }
+        if (prn <= 10) circleColor = DARKGREEN;
+        else if (prn <= 20) circleColor = GREEN;
+        else if (prn <= 30) circleColor = GREENYELLOW;
+        else circleColor = YELLOW;
 
-        if (prn >= 1 && prn <= 10) {
-          circleColor = DARKGREEN;  // GPS-Satelliten (PRN 1 bis 20)
-        } else if (prn >= 11 && prn <= 20) {
-          circleColor = GREEN;  // GLONASS-Satelliten (PRN 21 bis 30)
-        } else if (prn >= 21 && prn <= 30) {
-          circleColor = GREENYELLOW;  // Galileo-Satelliten (PRN 31 bis 40)
-        } else if (prn >= 31 && prn <= 40) {
-          circleColor = YELLOW;  // Galileo-Satelliten (PRN 31 bis 40)
-        }
-
-        // Falls alter Punkt existiert, löschen
+        // === Alten Kreis löschen ===
         if (oldX[i] > 0 && oldY[i] > 0) {
-          // Lösche den alten Kreis
-          M5.Lcd.drawCircle(oldX[i], oldY[i], oldCircleSize1[i], BLACK);  // Äußeren Kreis löschen
-          M5.Lcd.fillCircle(oldX[i], oldY[i], oldCircleSize2[i], BLACK);  // Inneren Kreis löschen
+          M5.Lcd.drawCircle(oldX[i], oldY[i], oldCircleSize1[i], BLACK);
+          M5.Lcd.fillCircle(oldX[i], oldY[i], oldCircleSize2[i], BLACK);
         }
 
-        // Größe des Kreises basierend auf SNR anpassen (größere Kreise für bessere SNR)
-        int circleSize = map(sats[i].snr, 1, 40, 2, 8);  // SNR zwischen 20 und 60 auf eine Größe von 5 bis 12 anpassen
+        // === Neue Kreisgröße berechnen & zeichnen ===
+        int circleSize = map(sats[i].snr, 1, 40, 2, 8);
+        M5.Lcd.drawCircle(x, y, circleSize, circleColor);
+        M5.Lcd.fillCircle(x, y, 1, WHITE);  // Mittelpunkt
 
-        // Zeichne den neuen Kreis
-        M5.Lcd.drawCircle(x, y, circleSize, circleColor);  // Äußeren Kreis zeichnen
-        M5.Lcd.fillCircle(x, y, 1, WHITE);                 // Inneren Kreis zeichnen (kleiner als der äußere Kreis)
-
-        // Neue Position und Größe speichern
+        // === Neue Werte speichern ===
         oldX[i] = x;
         oldY[i] = y;
         oldCircleSize1[i] = circleSize;
-        oldCircleSize2[i] = 1;  // Innerer Kreis ist kleiner als der äußere
+        oldCircleSize2[i] = 1;
       } else {
-
-        // Falls Satellit nicht mehr aktiv ist, alten Punkt löschen
+        // === Inaktive Satelliten löschen ===
         if (oldX[i] > 0 && oldY[i] > 0) {
-          M5.Lcd.drawCircle(oldX[i], oldY[i], oldCircleSize1[i], BLACK);  // Äußeren Kreis löschen
-          M5.Lcd.fillCircle(oldX[i], oldY[i], oldCircleSize2[i], BLACK);  // Inneren Kreis löschen
-          oldX[i] = oldY[i] = -1;                                         // Setze auf -1 statt 0, um Probleme zu vermeiden
-          oldCircleSize1[i] = oldCircleSize2[i] = 0;                      // Lösche gespeicherte Werte
+          M5.Lcd.drawCircle(oldX[i], oldY[i], oldCircleSize1[i], BLACK);
+          M5.Lcd.fillCircle(oldX[i], oldY[i], oldCircleSize2[i], BLACK);
+          oldX[i] = oldY[i] = -1;
+          oldCircleSize1[i] = oldCircleSize2[i] = 0;
         }
       }
     }
+
+  } else {
+    // === RADAR-HINTERGRUND (GRAU, KEIN FIX) ===
+    uint16_t radarColor = DARKGREY;
+    M5.Lcd.drawCircle(centerX, centerY, 47, radarColor);
+    M5.Lcd.drawCircle(centerX, centerY, 16, radarColor);
+    M5.Lcd.drawCircle(centerX, centerY, 32, radarColor);
+    M5.Lcd.drawFastHLine(centerX - 46, centerY, 94, radarColor);
+    M5.Lcd.drawFastVLine(centerX, centerY - 46, 94, radarColor);
+    M5.Lcd.drawLine(129, 44, 193, 108, radarColor);
+    M5.Lcd.drawLine(128, 109, 193, 44, radarColor);
+
+    // === Alte Satelliten entfernen ===
+    for (int i = 0; i < MAX_SATELLITES; ++i) {
+      if (oldX[i] > 0 && oldY[i] > 0) {
+        M5.Lcd.drawCircle(oldX[i], oldY[i], oldCircleSize1[i], BLACK);
+        M5.Lcd.fillCircle(oldX[i], oldY[i], oldCircleSize2[i], BLACK);
+        oldX[i] = oldY[i] = -1;
+        oldCircleSize1[i] = oldCircleSize2[i] = 0;
+      }
+    }
   }
+}
+
+
   M5.Lcd.fillRoundRect(17, 148, 72, 72, 2, BLACK);
   double relCourse = courseToHome - gps.course.deg();
   if (relCourse < 0) {
