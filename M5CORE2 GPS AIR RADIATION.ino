@@ -95,7 +95,7 @@ void drawPNGGeigerSignal() {
   if (SD.exists("/radiation.png")) {
 
     M5.Lcd.drawPngFile(SD, "/radiation.png", 198, 101);
-    delay(300);
+    delay(500);
   } else {
     Serial.println("Fehler: radiation.png nicht gefunden!");
   }
@@ -1176,6 +1176,7 @@ void loop() {
   printInt(gps.sentencesWithFix(), true, 10);
   printInt(gps.failedChecksum(), true, 9);
 
+  // RADAR DISPLAY
   M5.Lcd.drawCircle(161, 76, 47, DARKGREEN);
   M5.Lcd.drawCircle(161, 76, 16, DARKGREEN);
   M5.Lcd.drawCircle(161, 76, 32, DARKGREEN);
@@ -1193,7 +1194,7 @@ void loop() {
   }
 
   // Falls Satelliten aktiv sind, Position berechnen
-  if (activeSatellites > 0) {
+  if (gps.location.isValid() && gps.hdop.isValid() && gps.hdop.hdop() < 10 && activeSatellites > 0) {
     int centerX = 161, centerY = 76;
     float rad_fac = 3.14159265359 / 180;
 
