@@ -332,6 +332,12 @@ int calculateCET(TinyGPSDate &date, TinyGPSTime &time) {
     return 1;  // Winterzeit (UTC+1)
   }
 }
+// ==== [RADAR-SWEEP] Globale Variablen ====
+int sweepAngle = 0;                 // Aktueller Winkel des Sweep-Arms
+unsigned long lastSweep = 0;       // Letzter Update-Zeitpunkt für Sweep
+// ==== [RADAR-SWEEP] ENDE ====
+
+
 
 void setup() {
   Serial.begin(115200);
@@ -1220,7 +1226,13 @@ void drawRadarDisplay() {
         else if (prn <= 20) circleColor = GREEN;
         else if (prn <= 30) circleColor = GREENYELLOW;
         else circleColor = YELLOW;
-
+        
+        
+        // ==== [RADAR-SWEEP] Aufruf ====
+        drawRadarSweep();
+        // ==== [RADAR-SWEEP] ENDE ====
+        
+        
         // === Alten Kreis löschen ===
         if (oldX[i] > 0 && oldY[i] > 0) {
           M5.Lcd.drawCircle(oldX[i], oldY[i], oldCircleSize1[i], BLACK);
@@ -1809,3 +1821,37 @@ static void printInt(unsigned long val, bool valid, int len) {
     sz[len - 1] = ' ';
   Serial.print(sz);
 }
+// ==== [RADAR-SWEEP] Funktion zum Zeichnen des Sweep-Arms ====
+void drawRadarSweep() {
+  static int previousX = 0, previousY = 0;
+  const int centerX = 161;         // Zentrum des Radars
+  const int centerY = 76;
+  const int radius = 47;           // Reichweite des Radars
+  const uint16_t sweepColor = GREENYELLOW;
+
+  // Nur alle 30 ms aktualisieren
+  if (millis() - lastSweep > 30) {
+    // Lösche alte Linie (nur das äußere Ende, nicht die Mitte)
+    if (previousX != 0 && previousY != 0) {
+      M5.Lcd.drawLine(centerX, centerY, previousX, previousY, BLACK);
+    }
+
+    // Berechne neue Sweep-Linie
+    float angleRad = sweepAngle * PI / 180.0;
+    int x = centerX + cos(angleRad) * radius;
+    int y = centerY + sin(angleRad) * radius;
+
+    // Zeichne neue Sweep-Linie
+    M5.Lcd.drawLine(centerX, centerY, x, y, sweepColor);
+
+    // Koordinaten für späteres Löschen speichern
+    previousX = x;
+    previousY = y;
+
+    // Nächsten Winkel vorbereiten
+    sweepAngle = (sweepAngle + 3) % 360;
+    lastSweep = millis();
+  }
+}
+// ==== [RADAR-SWEEP] ENDE ====
+
