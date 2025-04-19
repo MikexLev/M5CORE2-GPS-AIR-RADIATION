@@ -11,21 +11,19 @@
 #include "CITIES.h"
 #include "moonPhase.h"
 
-/////////////////
-float volumeFactor = 0.1;  // Startlautstärke
+float volumeFactor = 0.2;       // Startlautstärke
+static int brightnessStep = 5;  // Start bei max (0 = AUS, 6 = max)
 unsigned long lastVolumeAdjustTime = 0;
 const unsigned long volumeAdjustInterval = 200;  // 200ms = 5x pro Sekunde
 File wavFile;
 uint8_t buffer[1024];
 // Hilfsfunktion zum WAV abspielen
-bool playSound(const char* filename) {
+bool playSound(const char *filename) {
   String fullpath = "/sounds/";
   fullpath += filename;
 
   wavFile = SD.open(fullpath.c_str());
   if (!wavFile) {
-    Serial.print("❌ Datei nicht gefunden: ");
-    Serial.println(fullpath);
     return false;
   }
 
@@ -48,46 +46,41 @@ bool playSound(const char* filename) {
 
   // Header prüfen
   wav_header_t wheader;
-  if (wavFile.read((uint8_t*)&wheader, sizeof(wheader)) != sizeof(wheader)) return false;
-  if (memcmp(wheader.RIFF, "RIFF", 4) ||
-      memcmp(wheader.WAVEfmt, "WAVEfmt ", 8) ||
-      wheader.audiofmt != 1 ||
-      wheader.sample_rate != 44100 ||
-      wheader.bit_per_sample != 16 ||
-      wheader.channel != 1) {
-    Serial.println("⚠️ Ungültiges WAV-Format");
+  if (wavFile.read((uint8_t *)&wheader, sizeof(wheader)) != sizeof(wheader)) return false;
+  if (memcmp(wheader.RIFF, "RIFF", 4) || memcmp(wheader.WAVEfmt, "WAVEfmt ", 8) || wheader.audiofmt != 1 || wheader.sample_rate != 44100 || wheader.bit_per_sample != 16 || wheader.channel != 1) {
+
     return false;
   }
 
   sub_chunk_t c;
   while (true) {
-    if (wavFile.read((uint8_t*)&c, sizeof(c)) != sizeof(c)) return false;
+    if (wavFile.read((uint8_t *)&c, sizeof(c)) != sizeof(c)) return false;
     if (memcmp(c.identifier, "data", 4) == 0) break;
     wavFile.seek(wavFile.position() + c.chunk_size);
   }
 
   // Wiedergabe starten
   while (wavFile.available()) {
-  int len = wavFile.read(buffer, sizeof(buffer));
+    int len = wavFile.read(buffer, sizeof(buffer));
 
-  // Lautstärke anpassen (16-Bit Samples skalieren)
-  for (int i = 0; i < len; i += 2) {
-    int16_t* sample = (int16_t*)&buffer[i];
-    *sample = *sample * volumeFactor;
+    // Lautstärke anpassen (16-Bit Samples skalieren)
+    for (int i = 0; i < len; i += 2) {
+      int16_t *sample = (int16_t *)&buffer[i];
+      *sample = *sample * volumeFactor;
+    }
+
+    M5.Spk.PlaySound(buffer, len);
   }
-
-  M5.Spk.PlaySound(buffer, len);
-}
   wavFile.close();
   return true;
 }
 bool soundEnabled = true;
-bool hadGpsFix = false;  // Merkt sich, ob vorher ein Fix vorhanden war
+bool hadGpsFix = false;   // Merkt sich, ob vorher ein Fix vorhanden war
 bool hasArrived = false;  // global definieren
 
 void updateVolumeBar() {
-  int level = round(volumeFactor * 6);      // 0 bis 5 (6 Stufen)
-  int barHeight = level * 34;               // 33 Pixel je Stufe
+  int level = round(volumeFactor * 6);  // 0 bis 5 (6 Stufen)
+  int barHeight = level * 34;           // 33 Pixel je Stufe
 
   // Nur den inneren Bereich löschen – Rahmen bleibt!
   M5.Lcd.fillRect(317, 24, 1, 204, BLACK);
@@ -100,10 +93,8 @@ void updateVolumeBar() {
 unsigned long lastGpsPingTime = 0;
 const unsigned long gpsPingInterval = 30000;  // 30 Sekunden
 void disablePowerLed() {
-  M5.Axp.SetLed(false); // dauerhaft grün-LED aus
+  M5.Axp.SetLed(false);  // dauerhaft grün-LED aus
 }
-
-////////////////////////////////////////////////////////////////////
 
 // Seedbanks definieren
 struct Location {
@@ -124,11 +115,10 @@ Location seedBanks[] = {
 
 const int numLocations = sizeof(seedBanks) / sizeof(seedBanks[0]);
 
-
 moonPhase moon;
 float lastPressure = -1;
 float lastPressures[10] = { -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 };  // Speicher für die letzten 5 Messungen
-float lastValidDoseRate = 0.0;  // Speichert den letzten gültigen Wert der Dosisrate
+float lastValidDoseRate = 0.0;                                         // Speichert den letzten gültigen Wert der Dosisrate
 
 int pressureIndex = 0;  // Aktuelle Position im Array
 String lastWeatherIcon = "";
@@ -139,7 +129,7 @@ bool selectingCity = false;
 
 BME280_I2C bme(0x76);  //i2C PA_SDA 32,PA_SCL 33
 TinyGPSPlus gps;
-HardwareSerial MySerial(1);             // Verwende den zweiten Hardware-Serial-Port
+HardwareSerial MySerial(1);  // Verwende den zweiten Hardware-Serial-Port
 // Struktur für Zeit
 struct tm timeinfo = {};
 
@@ -323,7 +313,7 @@ void checkForAlarms(float CO, float NH3, float NO2, float EMF, float radiation) 
     int patternCO[] = { 400, 100, 200, 100, 400 };
     triggerVibrationPattern(patternCO, sizeof(patternCO) / sizeof(patternCO[0]));
     alarmTriggered = true;
-  playSound("alarm11.wav"); 
+    playSound("alarm11.wav");
   }
 
   // NH3-Warnung
@@ -332,7 +322,7 @@ void checkForAlarms(float CO, float NH3, float NO2, float EMF, float radiation) 
     int patternNH3[] = { 400, 100, 400, 100, 200 };
     triggerVibrationPattern(patternNH3, sizeof(patternNH3) / sizeof(patternNH3[0]));
     alarmTriggered = true;
-  playSound("alarm11.wav"); 
+    playSound("alarm11.wav");
   }
 
   // NO2-Warnung
@@ -341,7 +331,7 @@ void checkForAlarms(float CO, float NH3, float NO2, float EMF, float radiation) 
     int patternNO2[] = { 200, 100, 200, 100, 400 };
     triggerVibrationPattern(patternNO2, sizeof(patternNO2) / sizeof(patternNO2[0]));
     alarmTriggered = true;
-  playSound("alarm11.wav"); 
+    playSound("alarm11.wav");
   }
 
   // EMF-Warnung
@@ -350,7 +340,7 @@ void checkForAlarms(float CO, float NH3, float NO2, float EMF, float radiation) 
     int patternEMF[] = { 200, 100, 200, 100, 100 };
     triggerVibrationPattern(patternEMF, sizeof(patternEMF) / sizeof(patternEMF[0]));
     alarmTriggered = true;
-  playSound("beep19.wav"); 
+    playSound("beep19.wav");
   }
 
   // Strahlungswarnung
@@ -360,7 +350,7 @@ void checkForAlarms(float CO, float NH3, float NO2, float EMF, float radiation) 
     int patternRadiation[] = { 200, 100, 400, 100, 200 };
     triggerVibrationPattern(patternRadiation, sizeof(patternRadiation) / sizeof(patternRadiation[0]));
     alarmTriggered = true;  // Setzt den Alarm, damit er nicht mehrfach ausgelöst wird
-  playSound("beep06.wav"); 
+    playSound("beep06.wav");
   }
 }
 
@@ -437,8 +427,10 @@ int calculateCET(TinyGPSDate &date, TinyGPSTime &time) {
 int activeSatellites = 0;
 double currentLat = gps.location.lat();
 double currentLon = gps.location.lng();
+/////////////////////////////////////////////////////////////////////////
 
 void setup() {
+
   Serial.begin(115200);
   M5.begin();
   pinMode(geigerPin, INPUT);                                              // Setze PIN 26 als Eingang
@@ -454,10 +446,11 @@ void setup() {
   // I2C Initialisierung
   if (!ads.begin()) {
     Serial.println("Fehler: ADS1115 nicht gefunden!");
-    while (1);
+    while (1)
+      ;
   }
   ads.setGain(GAIN_ONE);  // Verstärkung setzen (1x = ±4.096V)
-playSound("beep27.wav");
+  playSound("beep27.wav");
   // Initialisiere den Rate-Puffer mit neutralen Y-Werten (mittlere Höhe)
   for (int i = 0; i < RATE_GRAPH_WIDTH; i++) {
     rateGraphBuffer[i] = 90;  // Setze Startwert auf die Mitte des Bereichs
@@ -467,6 +460,7 @@ playSound("beep27.wav");
     ESP.restart();
   }
 
+  M5.Axp.SetLcdVoltage(3167);
 
   // Koordinaten aus Datei lesen
   File myFile = SD.open("/home_coordinates.txt");
@@ -490,8 +484,8 @@ playSound("beep27.wav");
 
   bool pngDrawn = false;  // set this variable to 'false' to ensure that the PNG has not yet been drawn
 
-  while (!pngDrawn) {            // Loop that keeps running until the display is tapped
-     
+  while (!pngDrawn) {  // Loop that keeps running until the display is tapped
+
     if (M5.Touch.ispressed()) {  // If the display was typed, set pngDrawn to 'true'
       pngDrawn = true;
     } else {  // Else draw the PNG
@@ -551,10 +545,9 @@ playSound("beep27.wav");
       M5.Lcd.setFreeFont(&CONTF___12pt7b);
       M5.Lcd.setCursor(206, 228);
       M5.Lcd.print(homeLon, 6);
-    
     }
   }
-  
+
   for (int i = 0; i < 4; ++i) {
     satNumber[i].begin(gps, "GPGSV", 4 + 4 * i);
     elevation[i].begin(gps, "GPGSV", 5 + 4 * i);
@@ -570,7 +563,7 @@ playSound("beep27.wav");
   M5.Lcd.drawRoundRect(8, 28, 90, 96, 4, BLUE);
   M5.Lcd.drawRoundRect(224, 28, 88, 96, 4, BLUE);
   M5.Lcd.drawRoundRect(8, 136, 90, 96, 4, BLUE);
-//M5.Lcd.drawPngFile(SD, "/SAT1.png", 100, 98);  // 🖼️ Icon für "kein Fix"
+  //M5.Lcd.drawPngFile(SD, "/SAT1.png", 100, 98);  // 🖼️ Icon für "kein Fix"
   M5.Lcd.setTextFont(1);
   M5.Lcd.setTextSize(1);
   M5.Lcd.setCursor(11, 233);
@@ -583,7 +576,7 @@ playSound("beep27.wav");
   //M5.Lcd.print("> HOME POS <");
   M5.Lcd.setCursor(234, 233);
   M5.Lcd.print("> SELECT <");
-updateVolumeBar(); // Lautstärkebalken sofort anzeigen beim Start
+  updateVolumeBar();  // Lautstärkebalken sofort anzeigen beim Start
 }
 
 // Funktion zur Berechnung eines Farbverlaufs von Rot (niedrig) nach Grün (hoch)
@@ -620,7 +613,7 @@ void drawRateGraph(float doseRate) {
     graphNeedsUpdate = true;
   }
 
-  if (!graphNeedsUpdate) return; // ⚠️ Kein Update → nicht zeichnen
+  if (!graphNeedsUpdate) return;  // Kein Update → nicht zeichnen
 
   graphNeedsUpdate = false;
 
@@ -645,43 +638,7 @@ void drawRateGraph(float doseRate) {
     M5.Lcd.drawLine(x1, y1, x2, y2, color);
   }
 }
-/*void drawAverageGraph(float avgDose) {
-  // Skalieren der Durchschnittswerte
-  int scaledHeight = map(avgDose, 0, 10, 0, 68);  // Skaliere auf den Bereich der Balkenhöhe
 
-  // Verhindere, dass der Balken null ist, und setze eine Mindesthöhe von 1 Pixel
-  if (scaledHeight < 1 && avgDose > 0) {
-    scaledHeight = 1;  // Mindesthöhe für Balken
-  }
-
-  avgGraphBuffer[avgGraphIndex] = scaledHeight;
-  avgGraphBuffer[avgGraphIndex] = constrain(avgGraphBuffer[avgGraphIndex], 0, 68);
-  avgGraphIndex = (avgGraphIndex + 1) % AVG_GRAPH_WIDTH;
-
-  M5.Lcd.fillRect(226, 90, 84, 33, BLACK);  // Lösche den Bereich für die Balkenanzeige
-
-  // Zeichne die Balken
-  for (int i = 0; i < AVG_GRAPH_WIDTH; i++) {
-    int x = 226 + i * 5;
-    int height = avgGraphBuffer[(avgGraphIndex + i) % AVG_GRAPH_WIDTH];
-    int y = 120 - height;
-
-    // Farbwahl basierend auf dem Dosiswert
-    float dose = height / 10.0;  // Rückrechnen auf µSv/h
-    uint16_t color;
-    if (dose < 1.0) {
-      color = GREEN;  // Grün für Dosis < 1 µSv/h
-    } else if (dose < 2.0) {
-      color = YELLOW;  // Gelb für Dosis < 2 µSv/h
-    } else if (dose < 5.0) {
-      color = ORANGE;  // Orange für Dosis < 5 µSv/h
-    } else {
-      color = RED;  // Rot für Dosis >= 5 µSv/h
-    }
-
-    M5.Lcd.fillRect(x, y, 4, height, color);  // Zeichne den Balken
-  }
-}*/
 void drawAverageGraph(float avgDose) {
   static bool avgGraphNeedsUpdate = false;
 
@@ -695,7 +652,7 @@ void drawAverageGraph(float avgDose) {
   if (!avgGraphNeedsUpdate) return;
   avgGraphNeedsUpdate = false;
 
-  M5.Lcd.fillRect(226, 90, 84, 33, BLACK); // Bereich löschen
+  M5.Lcd.fillRect(226, 90, 84, 33, BLACK);  // Bereich löschen
 
   for (int i = 0; i < AVG_GRAPH_WIDTH; i++) {
     int x = 226 + i * 5;
@@ -704,9 +661,9 @@ void drawAverageGraph(float avgDose) {
 
     float dose = height / 10.0;
     uint16_t color =
-      (dose < 1.0) ? GREEN :
-      (dose < 2.0) ? YELLOW :
-      (dose < 5.0) ? ORANGE : RED;
+      (dose < 1.0) ? GREEN : (dose < 2.0) ? YELLOW
+                           : (dose < 5.0) ? ORANGE
+                                          : RED;
 
     M5.Lcd.fillRect(x, y, 4, height, color);
   }
@@ -735,7 +692,7 @@ void updateDoseRate() {
     sumDose = 0;
     countSamples = 0;
   }
-  
+
   drawRateGraph(doseRate);  // Zeichne den aktuellen Graphen
   if (countSamples > 0) {
     displayValues(doseRate, sumDose / countSamples);
@@ -744,19 +701,19 @@ void updateDoseRate() {
   }
 }
 
-void displayValues(float doseRate, float averageDose) { 
+void displayValues(float doseRate, float averageDose) {
   M5.Lcd.setTextSize(1);
   M5.Lcd.setCursor(227, 31);
   M5.Lcd.setTextColor(YELLOW, BLACK);
   M5.Lcd.print("DR:");
-  
+
   // Wenn der Wert zu niedrig ist, den letzten gültigen Wert verwenden
   if (doseRate <= 0.01) {
     doseRate = lastValidDoseRate;  // Letzten gültigen Wert anzeigen
   } else {
     lastValidDoseRate = doseRate;  // Speichere den neuen gültigen Wert
   }
-  
+
   if (doseRate > 99) doseRate = 99;
   M5.Lcd.setTextColor(CYAN, BLACK);
   M5.Lcd.printf("%.2f uSv/h", doseRate);
@@ -766,16 +723,13 @@ void displayValues(float doseRate, float averageDose) {
   M5.Lcd.print("AD:");
   if (averageDose > 99) averageDose = 99;
 
-  uint16_t avgColor = (averageDose < 0.5) ? GREEN :
-                      (averageDose < 1.0) ? YELLOW :
-                      (averageDose < 2.0) ? ORANGE : RED;
+  uint16_t avgColor = (averageDose < 0.5) ? GREEN : (averageDose < 1.0) ? YELLOW
+                                                  : (averageDose < 2.0) ? ORANGE
+                                                                        : RED;
 
   M5.Lcd.setTextColor(avgColor, BLACK);
   M5.Lcd.printf("%.2f uSv/h", averageDose);
 }
-
-
-
 
 int lastSecond = -1;  // Um Sekundenänderungen zu verfolgen
 
@@ -805,14 +759,14 @@ void printDateTime(TinyGPSDate &d, TinyGPSTime &t) {
 
       // Zeit mit CET anzeigen
       unsigned long ms = currentMillis % 1000;
-     // Uhrzeit vorbereiten
-sprintf(sz, "%02d:%02d:%02d", hourCET, t.minute(), t.second());
-// Textfarbe nach Gültigkeit
-uint16_t timeColor = (d.isValid() && t.isValid()) ? CYAN : RED;
-// Zeitbereich löschen & anzeigen
-M5.Lcd.fillRect(232, 6, 8, 14, BLACK);
-M5.Lcd.setTextColor(timeColor, BLACK);
-M5.Lcd.print(sz);
+      // Uhrzeit vorbereiten
+      sprintf(sz, "%02d:%02d:%02d", hourCET, t.minute(), t.second());
+      // Textfarbe nach Gültigkeit
+      uint16_t timeColor = (d.isValid() && t.isValid()) ? CYAN : RED;
+      // Zeitbereich löschen & anzeigen
+      M5.Lcd.fillRect(232, 6, 8, 14, BLACK);
+      M5.Lcd.setTextColor(timeColor, BLACK);
+      M5.Lcd.print(sz);
     }
   }
 }
@@ -837,8 +791,6 @@ float getAveragePressure() {
   }
   return (count > 0) ? sum / count : -1;
 }
-
-
 
 // Funktion zum Aktualisieren des Icons
 void updateWeatherIcon(const String &newIcon) {
@@ -878,7 +830,6 @@ void updateWeatherDisplay() {
   float pressure = bme.getPressure_HP() / 100;
   lastPressures[pressureIndex] = pressure;
   pressureIndex = (pressureIndex + 1) % 10;  // Immer zyklisch zwischen 0-4
-
 
   String weatherIcon;
   String arrowIcon = lastArrowIcon;  // Standardmäßig das letzte Icon behalten
@@ -935,7 +886,6 @@ void updateWeatherDisplay() {
     weatherIcon = "/weather/00.png";
   }
 
-
   // Druck-Trend bestimmen
   if (lastPressures[(pressureIndex + 9) % 10] > 0) {  // Vergleich mit ältestem Wert
     float pressureDiff = avgPressure - lastPressures[(pressureIndex + 9) % 10];
@@ -949,6 +899,7 @@ void updateWeatherDisplay() {
   updateWeatherIcon(weatherIcon);
   updateArrowIcon(arrowIcon);
 }
+////////////////////////////////////////////////////////////////
 
 void loop() {
   M5.update();  // Touch-Events aktualisieren
@@ -1004,86 +955,106 @@ void loop() {
       }
     }
   }
-////////////////////////////////////////////////////////
 
-// === VOLUME ===
-static int volumeStep = 1;  // Startstufe (0 = lautlos, 5 = max)
-volumeStep = constrain(volumeStep, 0, 6);  // Sicherheit
-volumeFactor = volumeStep / 6.0;
+  // === VOLUME ===
+  static int volumeStep = 1;                 // Startstufe (0 = lautlos, 5 = max)
+  volumeStep = constrain(volumeStep, 0, 6);  // Sicherheit
+  volumeFactor = volumeStep / 6.0;
 
-// === VOLUMEBALKEN ZEICHNEN ===
-const int barHeight = 202;
-const int barWidth = 2;
-const int barX = 317, barY = 230;  // Balken endet bei Y=120
-const int steps = 6;
-const uint16_t barColor = WHITE;
+  // === VOLUMEBALKEN ZEICHNEN ===
+  const int barHeight = 202;
+  const int barWidth = 1;
+  const int barX = 317, barY = 230;  // Balken endet bei Y=120
+  const int steps = 6;
+  const uint16_t barColor = WHITE;
 
-// Hintergrund löschen
-M5.Lcd.fillRect(barX, barY - barHeight, barWidth, barHeight, BLACK);
+  // Hintergrund löschen
+  M5.Lcd.fillRect(barX, barY - barHeight, barWidth, barHeight, BLACK);
 
-// Gefüllter Balkenanteil
-int fillHeight = (volumeStep * barHeight) / steps;
-M5.Lcd.fillRect(barX, barY - fillHeight, barWidth, fillHeight, barColor);
+  // Gefüllter Balkenanteil
+  int fillHeight = (volumeStep * barHeight) / steps;
+  M5.Lcd.fillRect(barX, barY - fillHeight, barWidth, fillHeight, barColor);
 
-// Trennlinien zwischen den 6 Abschnitten (5 Linien)
-for (int i = 1; i < steps; ++i) {
-  int y = barY - (i * barHeight / steps);
-  M5.Lcd.drawFastHLine(barX, y, barWidth, BLACK);
-}
+  // Trennlinien zwischen den 6 Abschnitten (5 Linien)
+  for (int i = 1; i < steps; ++i) {
+    int y = barY - (i * barHeight / steps);
+    M5.Lcd.drawFastHLine(barX, y, barWidth, BLACK);
+  }
 
-if (M5.Touch.ispressed()) {
-  TouchPoint_t touchPoint = M5.Touch.getPressPoint();
+  if (M5.Touch.ispressed()) {
+    TouchPoint_t touchPoint = M5.Touch.getPressPoint();
 
-  // 🔊 Lautstärke erhöhen (oben rechts)
-  if (touchPoint.x >= 220 && touchPoint.x <= 320 && touchPoint.y >= 0 && touchPoint.y <= 100) {
-    if (volumeStep < 6) {
-      volumeStep++;
-      volumeFactor = volumeStep / 6.0;
-      //updateVolumeBar();
-      Serial.printf("🔊 Lautstärke hoch: %.2f\n", volumeFactor);
-      //M5.Axp.SetVibration(true);
-      //delay(120);
-      //M5.Axp.SetVibration(false);
+    // 🔊 Lautstärke erhöhen (oben rechts)
+    if (touchPoint.x >= 220 && touchPoint.x <= 320 && touchPoint.y >= 0 && touchPoint.y <= 100) {
+      if (volumeStep < 6) {
+        volumeStep++;
+        volumeFactor = volumeStep / 6.0;
+        //updateVolumeBar();
+        Serial.printf("🔊 Lautstärke hoch: %.2f\n", volumeFactor);
+        //M5.Axp.SetVibration(true);
+        //delay(120);
+        //M5.Axp.SetVibration(false);
+      }
+    }
+
+    // 🔉 Lautstärke verringern (unten rechts)
+    if (touchPoint.x >= 220 && touchPoint.x <= 320 && touchPoint.y >= 140 && touchPoint.y <= 240) {
+      if (volumeStep > 0) {
+        volumeStep--;
+        volumeFactor = volumeStep / 6.0;
+        //updateVolumeBar();
+        Serial.printf("🔉 Lautstärke runter: %.2f\n", volumeFactor);
+        //M5.Axp.SetVibration(true);
+        //delay(120);
+        //M5.Axp.SetVibration(false);
+      }
+    }
+
+    brightnessStep = constrain(brightnessStep, 0, 6);
+    int brightnessVoltage = map(brightnessStep, 0, 6, 2500, 3300);
+    M5.Axp.SetLcdVoltage(brightnessVoltage);
+
+    // === TOUCH: HELLIGKEIT STEUERUNG ===
+    if (M5.Touch.ispressed()) {
+      TouchPoint_t touchPoint = M5.Touch.getPressPoint();
+
+      // ☀️ Helligkeit erhöhen (oben links)
+      if (touchPoint.x >= 0 && touchPoint.x <= 100 && touchPoint.y >= 0 && touchPoint.y <= 100) {
+        if (brightnessStep < 6) {
+          brightnessStep++;
+          brightnessVoltage = map(brightnessStep, 0, 6, 2500, 3300);
+          M5.Axp.SetLcdVoltage(brightnessVoltage);
+        }
+      }
+
+      // 🌑 Helligkeit verringern (unten links)
+      if (touchPoint.x >= 0 && touchPoint.x <= 100 && touchPoint.y >= 140 && touchPoint.y <= 240) {
+        if (brightnessStep > 0) {
+          brightnessStep--;
+          brightnessVoltage = map(brightnessStep, 0, 6, 2500, 3300);
+          M5.Axp.SetLcdVoltage(brightnessVoltage);
+        }
+      }
     }
   }
 
-  // 🔉 Lautstärke verringern (unten rechts)
-  if (touchPoint.x >= 220 && touchPoint.x <= 320 && touchPoint.y >= 140 && touchPoint.y <= 240) {
-    if (volumeStep > 0) {
-      volumeStep--;
-      volumeFactor = volumeStep / 6.0;
-      //updateVolumeBar();
-      Serial.printf("🔉 Lautstärke runter: %.2f\n", volumeFactor);
-      //M5.Axp.SetVibration(true);
-      //delay(120);
-      //M5.Axp.SetVibration(false);
-    }
+  // === HELLIGKEITSBALKEN ZEICHNEN ===
+  const int brightBarHeight = 202;
+  const int brightBarWidth = 1;
+  const int brightBarX = 2, brightBarY = 230;  // Links unten
+  const int brightSteps = 6;
+  const uint16_t brightBarColor = CYAN;
+
+  M5.Lcd.fillRect(brightBarX, brightBarY - brightBarHeight, brightBarWidth, brightBarHeight, BLACK);
+
+  int brightFillHeight = (brightnessStep * brightBarHeight) / brightSteps;
+  M5.Lcd.fillRect(brightBarX, brightBarY - brightFillHeight, brightBarWidth, brightFillHeight, brightBarColor);
+
+  for (int i = 1; i < brightSteps; ++i) {
+    int y = brightBarY - (i * brightBarHeight / brightSteps);
+    M5.Lcd.drawFastHLine(brightBarX, y, brightBarWidth, BLACK);
   }
 
-  // 💡 Display AN/AUS (unten links)
-  if (touchPoint.x >= 0 && touchPoint.x <= 100 && touchPoint.y >= 140 && touchPoint.y <= 240) {
-    if (displayOn) {
-      M5.Lcd.setBrightness(0);  // ⛔ Hintergrundlicht AUS
-      M5.Lcd.sleep();
-      displayOn = false;
-     M5.Axp.SetVibration(true);
-  delay(120);                     // Kurz vibrieren
-  M5.Axp.SetVibration(false);
-    } else {
-      M5.Lcd.wakeup();
-      M5.Lcd.setBrightness(0);  // ⛔ Hintergrundlicht AUS
-      displayOn = true;
-     M5.Axp.SetVibration(true);
-  delay(120);                     // Kurz vibrieren
-  M5.Axp.SetVibration(false);
-    }
-    delay(500);
-  }
-}
-
-
-
-  
   M5.Lcd.fillRect(198, 104, 23, 23, BLACK);  // Lösche alten Wert
   static unsigned long lastUpdate = 0;
   unsigned long now = millis();
@@ -1097,7 +1068,7 @@ if (M5.Touch.ispressed()) {
     interrupts();
 
     doseRate = count / calibrationFactor;
-  
+
     static float sumDose = 0;     // Summe der Dosiswerte
     static int countSamples = 0;  // Anzahl der Samples pro Säule
     sumDose += doseRate;
@@ -1181,16 +1152,16 @@ if (M5.Touch.ispressed()) {
     M5.Lcd.fillRoundRect(100, 136, 212, 96, 4, BLACK);
     M5.Lcd.drawFastHLine(21, 233, 268, CYAN);
     M5.Lcd.drawFastHLine(21, 239, 268, CYAN);
-       // M5.Lcd.setCursor(18, 233);
-      M5.Lcd.setTextSize(1);
-      M5.Lcd.setTextColor(YELLOW, BLACK);
-      displaySavedLocation();
-        M5.Lcd.setTextColor(CYAN, BLACK);
-        M5.Lcd.print("> HOME POS <");
-        M5.Lcd.setCursor(236, 233);
-              M5.Lcd.print("> SELECT   ");
+    // M5.Lcd.setCursor(18, 233);
+    M5.Lcd.setTextSize(1);
+    M5.Lcd.setTextColor(YELLOW, BLACK);
+    displaySavedLocation();
+    M5.Lcd.setTextColor(CYAN, BLACK);
+    M5.Lcd.print("> HOME POS <");
+    M5.Lcd.setCursor(236, 233);
+    M5.Lcd.print("> SELECT   ");
     M5.Lcd.setCursor(300, 233);
-      M5.Lcd.print("<"); 
+    M5.Lcd.print("<");
     M5.Lcd.setTextSize(2);
     M5.Lcd.setTextColor(WHITE, BLACK);
     M5.Lcd.setCursor(108, 137);
@@ -1225,7 +1196,7 @@ if (M5.Touch.ispressed()) {
         displaySavedLocation();
         M5.Lcd.print("> HOME POS <");
         M5.Lcd.setCursor(236, 233);
-              M5.Lcd.print("> SELECT   ");
+        M5.Lcd.print("> SELECT   ");
       } else {
         Serial.println("ERROR WRITE FILE");
       }
@@ -1250,7 +1221,7 @@ if (M5.Touch.ispressed()) {
       M5.Lcd.print("> HOME POS <");
       M5.Lcd.setCursor(236, 233);
       M5.Lcd.print("> SELECT   ");
-    delay(3000);
+      delay(3000);
     }
     M5.Lcd.fillRoundRect(100, 136, 212, 96, 4, BLACK);
   }
@@ -1262,11 +1233,11 @@ if (M5.Touch.ispressed()) {
     M5.Lcd.drawFastHLine(21, 239, 270, CYAN);
     M5.Lcd.setTextSize(1);
     displaySavedLocation();  // Anzeige aktualisieren
-      M5.Lcd.print("> HOME POS <");
-      M5.Lcd.setCursor(236, 233);
-              M5.Lcd.print("> SELECT   ");
-      M5.Lcd.setCursor(300, 233);
-      M5.Lcd.print("<");
+    M5.Lcd.print("> HOME POS <");
+    M5.Lcd.setCursor(236, 233);
+    M5.Lcd.print("> SELECT   ");
+    M5.Lcd.setCursor(300, 233);
+    M5.Lcd.print("<");
 
     M5.Lcd.setTextSize(2);
     M5.Lcd.setTextColor(WHITE, BLACK);
@@ -1285,9 +1256,9 @@ if (M5.Touch.ispressed()) {
     M5.Lcd.print("\xF7 ");
     M5.Lcd.setTextSize(2);
     M5.Lcd.print(" 8.289310");
-    
+
     delay(3000);
-    
+
     M5.Lcd.setTextSize(1);
     File myFile = SD.open("/home_coordinates.txt", FILE_WRITE);
     if (myFile) {
@@ -1301,7 +1272,7 @@ if (M5.Touch.ispressed()) {
       displaySavedLocation();  // Anzeige aktualisieren
       M5.Lcd.print("> HOME POS <");
       M5.Lcd.setCursor(236, 233);
-              M5.Lcd.print("> SELECT ");
+      M5.Lcd.print("> SELECT ");
       M5.Lcd.setCursor(300, 233);
       M5.Lcd.print("<");
       M5.Lcd.fillRoundRect(100, 136, 212, 94, 4, BLACK);
@@ -1311,7 +1282,7 @@ if (M5.Touch.ispressed()) {
   }
 
   if (M5.BtnC.wasPressed()) {
-  playSound("beep18.wav");
+    playSound("beep18.wav");
     // Hintergrundbox anzeigen
     M5.Lcd.fillRoundRect(100, 136, 212, 96, 4, BLACK);
     M5.Lcd.setTextColor(GREEN, BLACK);
@@ -1379,7 +1350,7 @@ if (M5.Touch.ispressed()) {
               M5.Lcd.setCursor(238, 233);
               M5.Lcd.print("> SELECT   ");
               M5.Lcd.setCursor(300, 233);
-      M5.Lcd.print("<");
+              M5.Lcd.print("<");
               selected = true;
               delay(1000);
               break;
@@ -1390,8 +1361,6 @@ if (M5.Touch.ispressed()) {
         }
       }
     }
-
-
     // Menü schließen
     M5.Lcd.fillRoundRect(100, 136, 212, 96, 4, BLACK);
   }
@@ -1412,8 +1381,6 @@ if (M5.Touch.ispressed()) {
   printInt(gps.sentencesWithFix(), true, 10);
   printInt(gps.failedChecksum(), true, 9);
 
-
-
   // SAT DISPLAY
   activeSatellites = 0;
   for (int i = 0; i < MAX_SATELLITES; ++i) {
@@ -1422,73 +1389,74 @@ if (M5.Touch.ispressed()) {
     }
   }
 
-// Radar zeichnen (aufrufen!)
+  // Radar zeichnen (aufrufen!)
   drawRadarDisplay();
-// === RICHTUNGSANZEIGE (Kompass-Zeiger mit Freeze bei Langsamfahrt) ===
-static float lastValidCourse = 0;
+  // === RICHTUNGSANZEIGE (Kompass-Zeiger mit Freeze bei Langsamfahrt) ===
+  static float lastValidCourse = 0;
 
-float currentCourse = gps.course.deg();
-float currentSpeed = gps.speed.kmph();
+  float currentCourse = gps.course.deg();
+  float currentSpeed = gps.speed.kmph();
 
-if (gps.course.isValid() && gps.speed.isValid() && currentSpeed > 5.0) {
-  lastValidCourse = currentCourse;
-}
+  if (gps.course.isValid() && gps.speed.isValid() && currentSpeed > 5.0) {
+    lastValidCourse = currentCourse;
+  }
 
-// Berechnung der relativen Richtung mit eingefrorenem Kurs
-float relCourse = courseToHome - lastValidCourse;
-if (relCourse < 0) relCourse += 360;
-if (relCourse >= 360) relCourse -= 360;
+  // Berechnung der relativen Richtung mit eingefrorenem Kurs
+  float relCourse = courseToHome - lastValidCourse;
+  if (relCourse < 0) relCourse += 360;
+  if (relCourse >= 360) relCourse -= 360;
 
-M5.Lcd.fillCircle(52, 184, 32, BLACK); // Kompassfläche löschen
+  M5.Lcd.fillCircle(52, 184, 32, BLACK);  // Kompassfläche löschen
 
-if (distanceToHome < 10) {
-  M5.Lcd.drawCircle(52, 184, 30, GREEN);
-  M5.Lcd.drawCircle(52, 184, 20, GREENYELLOW);
-  M5.Lcd.drawCircle(52, 184, 10, YELLOW);
-  M5.Lcd.drawCircle(52, 184, 2, WHITE);
-  M5.Lcd.drawFastVLine(52, 200, 20, YELLOW);
-  M5.Lcd.drawFastVLine(52, 149, 20, YELLOW);
-  M5.Lcd.drawFastHLine(68, 184, 20, YELLOW);
-  M5.Lcd.drawFastHLine(17, 184, 20, YELLOW);
-  M5.Lcd.setTextSize(1);
-  M5.Lcd.setTextColor(YELLOW, BLACK);
-  M5.Lcd.setCursor(50, 140);
-  M5.Lcd.print("N");
-  M5.Lcd.setCursor(11, 181);
-  M5.Lcd.print("W");
-  M5.Lcd.setCursor(89, 181);
-  M5.Lcd.print("E");
-} else {
-  float angle = relCourse * rad_fac;
-  int x = sin(angle) * 26;
-  int y = cos(angle) * 26;
-  int q = sin(angle);
-  int r = cos(angle);
-  int x1 = 53 + x;
-  int y1 = 184 - y;
-  int x2 = 53 - x;
-  int y2 = 184 + y;
-  int q1 = 53 + q;
-  int r1 = 184 - r;
-  int q2 = 53 - q;
-  int r2 = 184 + r;
+  if (distanceToHome < 10) {
+    M5.Lcd.drawCircle(52, 184, 30, GREEN);
+    M5.Lcd.drawCircle(52, 184, 20, GREENYELLOW);
+    M5.Lcd.drawCircle(52, 184, 10, YELLOW);
+    M5.Lcd.drawCircle(52, 184, 2, WHITE);
+    M5.Lcd.drawFastVLine(52, 200, 20, YELLOW);
+    M5.Lcd.drawFastVLine(52, 149, 20, YELLOW);
+    M5.Lcd.drawFastHLine(68, 184, 20, YELLOW);
+    M5.Lcd.drawFastHLine(17, 184, 20, YELLOW);
+    M5.Lcd.setTextSize(1);
+    M5.Lcd.setTextColor(YELLOW, BLACK);
+    M5.Lcd.setCursor(50, 140);
+    M5.Lcd.print("N");
+    M5.Lcd.setCursor(11, 181);
+    M5.Lcd.print("W");
+    M5.Lcd.setCursor(89, 181);
+    M5.Lcd.print("E");
+  } else {
+    float angle = relCourse * rad_fac;
+    int x = sin(angle) * 26;
+    int y = cos(angle) * 26;
+    int q = sin(angle);
+    int r = cos(angle);
+    int x1 = 53 + x;
+    int y1 = 184 - y;
+    int x2 = 53 - x;
+    int y2 = 184 + y;
+    int q1 = 53 + q;
+    int r1 = 184 - r;
+    int q2 = 53 - q;
+    int r2 = 184 + r;
 
-  double arrowAngle1 = relCourse + 200;
-  x = sin(arrowAngle1 * rad_fac) * 48;
-  y = cos(arrowAngle1 * rad_fac) * 48;
-  q = sin(arrowAngle1 * rad_fac) * 48;
-  r = cos(arrowAngle1 * rad_fac) * 48;
-  x2 = x1 + x;
-  y2 = y1 - y;
-  q2 = q1 + q;
-  r2 = r1 - r;
+    double arrowAngle1 = relCourse + 200;
+    x = sin(arrowAngle1 * rad_fac) * 48;
+    y = cos(arrowAngle1 * rad_fac) * 48;
+    q = sin(arrowAngle1 * rad_fac) * 48;
+    r = cos(arrowAngle1 * rad_fac) * 48;
+    x2 = x1 + x;
+    y2 = y1 - y;
+    q2 = q1 + q;
+    r2 = r1 - r;
 
-  uint16_t arrowColor = (currentSpeed <= 5.0) ? ORANGE : YELLOW;
+    uint16_t arrowColor = (currentSpeed <= 3.0) ? ORANGE : YELLOW;
 
-  if ((gps.location.lat() != 0) || (gps.location.lng() != 0)) {
-    M5.Lcd.drawLine(x1, y1, x2, y2, arrowColor);
-    M5.Lcd.drawLine(q1, r1, x2, y2, arrowColor);
-  }else {M5.Lcd.drawCircle(52, 184, 30, NAVY);
+    if ((gps.location.lat() != 0) || (gps.location.lng() != 0)) {
+      M5.Lcd.drawLine(x1, y1, x2, y2, arrowColor);
+      M5.Lcd.drawLine(q1, r1, x2, y2, arrowColor);
+    } else {
+      M5.Lcd.drawCircle(52, 184, 30, NAVY);
       M5.Lcd.drawCircle(52, 184, 20, 0x00AF);
       M5.Lcd.drawCircle(52, 184, 10, BLUE);
       M5.Lcd.drawCircle(52, 184, 2, BLUE);
@@ -1496,45 +1464,42 @@ if (distanceToHome < 10) {
       M5.Lcd.drawFastVLine(52, 149, 20, DARKCYAN);
       M5.Lcd.drawFastHLine(68, 184, 20, DARKCYAN);
       M5.Lcd.drawFastHLine(17, 184, 20, DARKCYAN);
-}
-  double arrowAngle2 = relCourse + 160;
-  x = sin(arrowAngle2 * rad_fac) * 48;
-  y = cos(arrowAngle2 * rad_fac) * 48;
-  q = sin(arrowAngle2 * rad_fac) * 48;
-  r = cos(arrowAngle2 * rad_fac) * 48;
-  x2 = x1 + x;
-  y2 = y1 - y;
-  q2 = q1 + q;
-  r2 = r1 - r;
+    }
+    double arrowAngle2 = relCourse + 160;
+    x = sin(arrowAngle2 * rad_fac) * 48;
+    y = cos(arrowAngle2 * rad_fac) * 48;
+    q = sin(arrowAngle2 * rad_fac) * 48;
+    r = cos(arrowAngle2 * rad_fac) * 48;
+    x2 = x1 + x;
+    y2 = y1 - y;
+    q2 = q1 + q;
+    r2 = r1 - r;
 
-  if ((gps.location.lat() != 0) || (gps.location.lng() != 0)) {
-    M5.Lcd.drawLine(x1, y1, x2, y2, arrowColor);
-    M5.Lcd.drawLine(q1, r1, x2, y2, arrowColor);
+    if ((gps.location.lat() != 0) || (gps.location.lng() != 0)) {
+      M5.Lcd.drawLine(x1, y1, x2, y2, arrowColor);
+      M5.Lcd.drawLine(q1, r1, x2, y2, arrowColor);
+    }
+
+    M5.Lcd.setTextSize(1);
+    M5.Lcd.setTextColor(RED, BLACK);
+    M5.Lcd.setCursor(50, 140);
+    M5.Lcd.print("N");
+    M5.Lcd.setCursor(11, 181);
+    M5.Lcd.print("W");
+    M5.Lcd.setCursor(89, 181);
+    M5.Lcd.print("E");
   }
 
-  M5.Lcd.setTextSize(1);
-  M5.Lcd.setTextColor(RED, BLACK);
-  M5.Lcd.setCursor(50, 140);
-  M5.Lcd.print("N");
-  M5.Lcd.setCursor(11, 181);
-  M5.Lcd.print("W");
-  M5.Lcd.setCursor(89, 181);
-  M5.Lcd.print("E");
-}
+  // ⏱️ GPS-Ping bei aktivem Fix alle 30 Sekunden
+  if (gps.location.isValid() && millis() - lastGpsPingTime >= gpsPingInterval) {
+    //playSound("beep29.wav");  // oder ein anderer kurzer Ton
+    playSound("sonar01.wav");
+    Serial.println("📍 GPS-Ping (Fix OK)");
+    lastGpsPingTime = millis();
+  }
 
-
-// ⏱️ GPS-Ping bei aktivem Fix alle 30 Sekunden
-if (gps.location.isValid() && millis() - lastGpsPingTime >= gpsPingInterval) {
-  //playSound("beep29.wav");  // oder ein anderer kurzer Ton
-  playSound("sonar01.wav");
-  Serial.println("📍 GPS-Ping (Fix OK)");
-  lastGpsPingTime = millis();
-}
-
-const char *satIcon = gps.location.isValid() ? "/SAT2.png" : "/SAT1.png";
+  const char *satIcon = gps.location.isValid() ? "/SAT2.png" : "/SAT1.png";
   M5.Lcd.drawPngFile(SD, satIcon, 100, 98);
-
-
 
   //COORDINATES
   if (distanceToHome > 10) {
@@ -1562,8 +1527,7 @@ const char *satIcon = gps.location.isValid() ? "/SAT2.png" : "/SAT1.png";
 
   updateWeatherDisplay();
 
-
- int16_t raw_CO = ads.readADC_SingleEnded(0);   // Kanal A0 = CO
+  int16_t raw_CO = ads.readADC_SingleEnded(0);   // Kanal A0 = CO
   int16_t raw_NH3 = ads.readADC_SingleEnded(1);  // Kanal A1 = NH3
   int16_t raw_NO2 = ads.readADC_SingleEnded(2);  // Kanal A2 = NO2
   int16_t raw_EMF = ads.readADC_SingleEnded(3);  // Kanal A3 = EMF
@@ -1717,6 +1681,7 @@ const char *satIcon = gps.location.isValid() ? "/SAT2.png" : "/SAT1.png";
 
   // ==== Ladeanimation (nur wenn geladen wird) ====
   if (isCharging) {
+
     M5.Lcd.fillTriangle(291, 14, 288, 14, 295, 7, RED);   // Pfeil oben
     M5.Lcd.fillTriangle(296, 13, 291, 13, 289, 20, RED);  // Pfeil unten
   }
@@ -1727,7 +1692,6 @@ const char *satIcon = gps.location.isValid() ? "/SAT2.png" : "/SAT1.png";
   M5.Lcd.print(batPercentage, 0);
   M5.Lcd.print("% ");
 
-
   //GPS
 
   // LATTITUDE
@@ -1736,10 +1700,9 @@ const char *satIcon = gps.location.isValid() ? "/SAT2.png" : "/SAT1.png";
   M5.Lcd.setCursor(106, 138);
   M5.Lcd.print("LATT:");
 
-
- if (gps.location.isValid() && gps.location.lat() != 0.0) {
-  static double smoothLat = 0.0;
-  smoothLat = gps.location.lat();
+  if (gps.location.isValid() && gps.location.lat() != 0.0) {
+    static double smoothLat = 0.0;
+    smoothLat = gps.location.lat();
     M5.Lcd.fillRect(184, 138, 2, 14, BLACK);
     M5.Lcd.setTextColor(CYAN, BLACK);
     M5.Lcd.print(gps.location.lat() < 0 ? "S" : "N");
@@ -1747,16 +1710,9 @@ const char *satIcon = gps.location.isValid() ? "/SAT2.png" : "/SAT1.png";
     M5.Lcd.print("\xF7");
     M5.Lcd.setTextSize(2);
     char latBuffer[16];
-  snprintf(latBuffer, sizeof(latBuffer), "%.6f", smoothLat);
-  M5.Lcd.print(latBuffer);
-    //smoothLat = gps.location.lat();  // Direkte GPS-Werte verwenden
-    //char latBuffer[12];
-    //snprintf(latBuffer, sizeof(latBuffer), "%.6f", smoothLat);
-    //M5.Lcd.setCursor(186, 138);
-    //M5.Lcd.print(latBuffer);
-    //M5.Lcd.fillRect(293, 138, 23, 14, BLACK);
-    //M5.Lcd.fillRect(315, 138, 4, 14, BLACK);
-    //M5.Lcd.drawFastVLine(315, 138, 16, CYAN);
+    snprintf(latBuffer, sizeof(latBuffer), "%.6f", smoothLat);
+    M5.Lcd.print(latBuffer);
+
   } else {
     M5.Lcd.setCursor(215, 138);
     M5.Lcd.setTextColor(RED, BLACK);
@@ -1766,7 +1722,6 @@ const char *satIcon = gps.location.isValid() ? "/SAT2.png" : "/SAT1.png";
   M5.Lcd.setTextColor(GREEN, BLACK);
   M5.Lcd.setCursor(106, 157);
   M5.Lcd.print("LONG:");
-
 
   if (gps.location.isValid() && gps.location.lng() != 0.0) {
     static double smoothLon = 0.0;
@@ -1788,86 +1743,83 @@ const char *satIcon = gps.location.isValid() ? "/SAT2.png" : "/SAT1.png";
     M5.Lcd.print("---");
   }
 
- // ALTITUDE
-M5.Lcd.setTextColor(GREEN, BLACK);
-M5.Lcd.setCursor(106, 176);
-M5.Lcd.print("ALTI:");
+  // ALTITUDE
+  M5.Lcd.setTextColor(GREEN, BLACK);
+  M5.Lcd.setCursor(106, 176);
+  M5.Lcd.print("ALTI:");
 
-static String lastAltitude = "";
-String altDisplay = "---";
+  static String lastAltitude = "";
+  String altDisplay = "---";
 
-if ((millis() > 5000 && gps.charsProcessed() < 4) || !gps.altitude.isValid()) {
-  altDisplay = "---";
-} else {
-  float altitude = gps.altitude.meters();
-  char altBuffer[12];
-  snprintf(altBuffer, sizeof(altBuffer), "%.2f", altitude);
-  altDisplay = String(altBuffer) + " m";
-}
-
-if (altDisplay != lastAltitude) {
-  M5.Lcd.fillRect(166, 176, 140, 14, BLACK);  // Breite anpassen
-  M5.Lcd.setCursor(166, 176);
-  M5.Lcd.setTextColor(altDisplay == "---" ? RED : CYAN, BLACK);
-  M5.Lcd.print(altDisplay);
-  lastAltitude = altDisplay;
-}
-
-
- // SPEED
-M5.Lcd.setTextColor(GREEN, BLACK);
-M5.Lcd.setCursor(106, 196);
-M5.Lcd.print("SPED:");
-
-static String lastSpeed = "";
-String speedDisplay = "---";
-
-if ((millis() > 5000 && gps.charsProcessed() < 4) || !gps.speed.isValid()) {
-  speedDisplay = "---";
-} else {
-  int speed = gps.speed.kmph();
-  speedDisplay = String(speed) + " km/h";
-}
-
-if (speedDisplay != lastSpeed) {
-  M5.Lcd.fillRect(166, 196, 140, 14, BLACK);  // Breite anpassen
-  M5.Lcd.setCursor(166, 196);
-  M5.Lcd.setTextColor(speedDisplay == "---" ? RED : CYAN, BLACK);
-  M5.Lcd.print(speedDisplay);
-  lastSpeed = speedDisplay;
-}
-
-
- // DEST
-M5.Lcd.setTextColor(GREEN, BLACK);
-M5.Lcd.setCursor(106, 215);
-M5.Lcd.print("DEST:");
-
-static String lastDest = "";
-String distanceStr = "---";
-
-bool noFix = ((millis() > 5000 && gps.charsProcessed() < 10) || !gps.speed.isValid());
-if (!noFix) {
-  double distance = TinyGPSPlus::distanceBetween(
-    gps.location.lat(), gps.location.lng(), homeLat, homeLon);
-
-  if (distance < 1000) {
-    distanceStr = String((int)distance) + " m";
+  if ((millis() > 5000 && gps.charsProcessed() < 4) || !gps.altitude.isValid()) {
+    altDisplay = "---";
   } else {
-    char buffer[10];
-    snprintf(buffer, sizeof(buffer), "%.2f", distance / 1000.0);
-    distanceStr = String(buffer) + " km";
+    float altitude = gps.altitude.meters();
+    char altBuffer[12];
+    snprintf(altBuffer, sizeof(altBuffer), "%.2f", altitude);
+    altDisplay = String(altBuffer) + " m";
   }
-}
 
-if (distanceStr != lastDest) {
-  M5.Lcd.fillRect(166, 215, 140, 14, BLACK);  // Breite großzügig anlegen
-  M5.Lcd.setCursor(166, 215);
-  M5.Lcd.setTextColor(distanceStr == "---" ? RED : CYAN, BLACK);
-  M5.Lcd.print(distanceStr);
-  lastDest = distanceStr;
-}
+  if (altDisplay != lastAltitude) {
+    M5.Lcd.fillRect(166, 176, 140, 14, BLACK);  // Breite anpassen
+    M5.Lcd.setCursor(166, 176);
+    M5.Lcd.setTextColor(altDisplay == "---" ? RED : CYAN, BLACK);
+    M5.Lcd.print(altDisplay);
+    lastAltitude = altDisplay;
+  }
 
+  // SPEED
+  M5.Lcd.setTextColor(GREEN, BLACK);
+  M5.Lcd.setCursor(106, 196);
+  M5.Lcd.print("SPED:");
+
+  static String lastSpeed = "";
+  String speedDisplay = "---";
+
+  if ((millis() > 5000 && gps.charsProcessed() < 4) || !gps.speed.isValid()) {
+    speedDisplay = "---";
+  } else {
+    int speed = gps.speed.kmph();
+    speedDisplay = String(speed) + " km/h";
+  }
+
+  if (speedDisplay != lastSpeed) {
+    M5.Lcd.fillRect(166, 196, 140, 14, BLACK);  // Breite anpassen
+    M5.Lcd.setCursor(166, 196);
+    M5.Lcd.setTextColor(speedDisplay == "---" ? RED : CYAN, BLACK);
+    M5.Lcd.print(speedDisplay);
+    lastSpeed = speedDisplay;
+  }
+
+  // DEST
+  M5.Lcd.setTextColor(GREEN, BLACK);
+  M5.Lcd.setCursor(106, 215);
+  M5.Lcd.print("DEST:");
+
+  static String lastDest = "";
+  String distanceStr = "---";
+
+  bool noFix = ((millis() > 5000 && gps.charsProcessed() < 10) || !gps.speed.isValid());
+  if (!noFix) {
+    double distance = TinyGPSPlus::distanceBetween(
+      gps.location.lat(), gps.location.lng(), homeLat, homeLon);
+
+    if (distance < 1000) {
+      distanceStr = String((int)distance) + " m";
+    } else {
+      char buffer[10];
+      snprintf(buffer, sizeof(buffer), "%.2f", distance / 1000.0);
+      distanceStr = String(buffer) + " km";
+    }
+  }
+
+  if (distanceStr != lastDest) {
+    M5.Lcd.fillRect(166, 215, 140, 14, BLACK);  // Breite großzügig anlegen
+    M5.Lcd.setCursor(166, 215);
+    M5.Lcd.setTextColor(distanceStr == "---" ? RED : CYAN, BLACK);
+    M5.Lcd.print(distanceStr);
+    lastDest = distanceStr;
+  }
 
   M5.Lcd.setTextSize(1);
   M5.Lcd.setCursor(16, 222);
@@ -1900,21 +1852,20 @@ if (distanceStr != lastDest) {
   } else if (travel_time_minutes > 1.5) {
     M5.Lcd.print(travel_time_minutes, 0);
     M5.Lcd.print(" MINUTES");
- } else if (travel_time_minutes >= 0.5) {
-  M5.Lcd.print(travel_time_minutes, 0);
-  M5.Lcd.print(" MINUTE");
-  hasArrived = false;  // Reset falls wieder entfernt
+  } else if (travel_time_minutes >= 0.5) {
+    M5.Lcd.print(travel_time_minutes, 0);
+    M5.Lcd.print(" MINUTE");
+    hasArrived = false;  // Reset falls wieder entfernt
 
-} else {
-  if (!hasArrived) {
-    playSound("beep15.wav");  // 🎵 DESTINATION erreicht!
-    Serial.println("🎯 DESTINATION erreicht!");
-    hasArrived = true;
+  } else {
+    if (!hasArrived) {
+      playSound("beep15.wav");  // 🎵 DESTINATION erreicht!
+      Serial.println("🎯 DESTINATION erreicht!");
+      hasArrived = true;
+    }
+    M5.Lcd.setTextColor(GREEN, BLACK);
+    M5.Lcd.print(" DESTINATION");
   }
-  M5.Lcd.setTextColor(GREEN, BLACK);
-  M5.Lcd.print(" DESTINATION");
-}
-
 
   float currentLat = gps.location.lat();
   float currentLon = gps.location.lng();
@@ -1955,9 +1906,9 @@ if (distanceStr != lastDest) {
       Serial.print(i + 1);
       Serial.print(F(" "));
     }
-
 }
 //LOOP END
+
 void displaySavedLocation() {
   M5.Lcd.fillRect(21, 233, 100, 10, BLACK);  // Löscht alten Text
   M5.Lcd.setCursor(21, 233);
@@ -2009,7 +1960,7 @@ void drawRadarDisplay() {
   const float rad_fac = 3.14159265359 / 180;
 
   // Nur wenn echte Koordinaten + mindestens 1 aktiver Satellit
-  if (gps.location.isValid() && gps.charsProcessed() > 100 && activeSatellites > 0){
+  if (gps.location.isValid() && gps.charsProcessed() > 100 && activeSatellites > 0) {
     uint16_t radarColor = DARKGREEN;
     M5.Lcd.drawCircle(centerX, centerY, 47, radarColor);
     M5.Lcd.drawCircle(centerX, centerY, 16, radarColor);
@@ -2034,9 +1985,9 @@ void drawRadarDisplay() {
         int y = centerY - (cos(az_r) * e);
 
         if (x >= 0 && y >= 0 && x < 320 && y < 240) {
-          uint16_t circleColor = (sats[i].snr <= 10) ? YELLOW :
-                                 (sats[i].snr <= 20) ? GREENYELLOW :
-                                 (sats[i].snr <= 30) ? GREEN : DARKGREEN;
+          uint16_t circleColor = (sats[i].snr <= 10) ? YELLOW : (sats[i].snr <= 20) ? GREENYELLOW
+                                                              : (sats[i].snr <= 30) ? GREEN
+                                                                                    : DARKGREEN;
 
           int circleSize = map(sats[i].snr, 1, 40, 2, 8);
           M5.Lcd.drawCircle(x, y, circleSize, circleColor);
@@ -2069,5 +2020,3 @@ void drawRadarDisplay() {
     }
   }
 }
-
-
