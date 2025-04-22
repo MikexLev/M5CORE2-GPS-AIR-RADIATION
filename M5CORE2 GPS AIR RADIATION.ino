@@ -10,7 +10,8 @@
 #include "FONT2.h"
 #include "CITIES.h"
 #include "moonPhase.h"
-
+bool silentMode = false;        // Steuerung laut/lautlos
+bool uiReady = false;           // UI vollständig aufgebaut?
 float volumeFactor = 0.2;       // Startlautstärke
 static int brightnessStep = 5;  // Start bei max (0 = AUS, 6 = max)
 unsigned long lastVolumeAdjustTime = 0;
@@ -21,7 +22,6 @@ uint8_t buffer[1024];
 bool playSound(const char *filename) {
   String fullpath = "/sounds/";
   fullpath += filename;
-
   wavFile = SD.open(fullpath.c_str());
   if (!wavFile) {
     return false;
@@ -308,7 +308,7 @@ void checkForAlarms(float CO, float NH3, float NO2, float EMF, float radiation) 
 
   // CO-Warnung
   if (CO > CO_THRESHOLD) {
-    playSound("alarm11.wav");
+    if (!silentMode) playSound("alarm11.wav");
     showAlarm("/hazard.png", 13, 79, " !!!DANGER!!!");
     int patternCO[] = { 400, 100, 200, 100, 400 };
     triggerVibrationPattern(patternCO, sizeof(patternCO) / sizeof(patternCO[0]));
@@ -317,7 +317,7 @@ void checkForAlarms(float CO, float NH3, float NO2, float EMF, float radiation) 
 
   // NH3-Warnung
   if (NH3 > NH3_THRESHOLD) {
-    playSound("alarm11.wav");
+    if (!silentMode) playSound("alarm11.wav");
     showAlarm("/hazard.png", 13, 90, " !!!DANGER!!!");
     int patternNH3[] = { 400, 100, 400, 100, 200 };
     triggerVibrationPattern(patternNH3, sizeof(patternNH3) / sizeof(patternNH3[0]));
@@ -326,7 +326,7 @@ void checkForAlarms(float CO, float NH3, float NO2, float EMF, float radiation) 
 
   // NO2-Warnung
   if (NO2 > NO2_THRESHOLD) {
-    playSound("alarm11.wav");
+    if (!silentMode) playSound("alarm11.wav");
     showAlarm("/hazard.png", 13, 101, " !!!DANGER!!!");
     int patternNO2[] = { 200, 100, 200, 100, 400 };
     triggerVibrationPattern(patternNO2, sizeof(patternNO2) / sizeof(patternNO2[0]));
@@ -335,7 +335,7 @@ void checkForAlarms(float CO, float NH3, float NO2, float EMF, float radiation) 
 
   // EMF-Warnung
   if (EMF > EMF_THRESHOLD) {
-    playSound("beep19.wav");
+    if (!silentMode) playSound("beep19.wav");
     showAlarm("/EMF.png", 13, 112, " !!!DANGER!!!");
     int patternEMF[] = { 200, 100, 200, 100, 100 };
     triggerVibrationPattern(patternEMF, sizeof(patternEMF) / sizeof(patternEMF[0]));
@@ -344,7 +344,7 @@ void checkForAlarms(float CO, float NH3, float NO2, float EMF, float radiation) 
 
   // Strahlung
   if (radiation > RADIATION_THRESHOLD && !alarmTriggered) {
-    playSound("alarm07.wav");
+    if (!silentMode) playSound("alarm07.wav");
     M5.Lcd.drawPngFile(SD, "/radiation3.png", 237, 31);
     int patternRadiation[] = { 200, 100, 400, 100, 200 };
     triggerVibrationPattern(patternRadiation, sizeof(patternRadiation) / sizeof(patternRadiation[0]));
@@ -546,7 +546,7 @@ void setup() {
     Serial.println("Keine gespeicherten Koordinaten gefunden.");
   }
 
-  playSound("beep27.wav");
+  if (!silentMode) playSound("beep27.wav");
 
   bool pngDrawn = false;  // set this variable to 'false' to ensure that the PNG has not yet been drawn
 
@@ -976,6 +976,25 @@ void updateWeatherDisplay() {
   updateWeatherIcon(weatherIcon);
   updateArrowIcon(arrowIcon);
 }
+void handleSilentTouch() {
+  // Mittelpunkt & Radius des Kreises
+  int centerX = 161;
+  int centerY = 76;
+  int radius = 47;
+
+  if (M5.Touch.ispressed()) {
+    TouchPoint_t p = M5.Touch.getPressPoint();
+    int dx = p.x - centerX;
+    int dy = p.y - centerY;
+
+    if ((dx * dx + dy * dy) <= (radius * radius)) {
+      silentMode = !silentMode;
+      drawSilentIcon();  // Neu anzeigen
+      delay(300);        // Einfaches Debounce
+    }
+  }
+  uiReady = true;  // Jetzt ist UI bereit
+}
 
 ////////////////////////////////////////////////////////////////
 
@@ -1033,7 +1052,7 @@ void loop() {
       }
     }
   }
-
+  handleSilentTouch();  // Touch-Zone prüfen
   // === VOLUME ===
   static int volumeStep = 1;                 // Startstufe (0 = lautlos, 5 = max)
   volumeStep = constrain(volumeStep, 0, 6);  // Sicherheit
@@ -1246,7 +1265,7 @@ void loop() {
       M5.Lcd.setCursor(108, 165);
       M5.Lcd.setTextColor(CYAN, BLACK);
       M5.Lcd.print("Looking for position...");
-      playSound("beep31.wav");
+      if (!silentMode) playSound("beep31.wav");
       while (millis() - waitStart < 3000) {
         while (Serial1.available()) {
           gps.encode(Serial1.read());
@@ -1311,7 +1330,7 @@ void loop() {
         M5.Lcd.setTextColor(CYAN, BLACK);
         M5.Lcd.setTextSize(1);
         displaySavedLocation();
-        playSound("beep12.wav");
+        if (!silentMode) playSound("beep12.wav");
         delay(2000);
 
       } else {
@@ -1353,7 +1372,7 @@ void loop() {
   }
 
   if (M5.BtnB.wasPressed()) {
-    playSound("beep10.wav");
+    if (!silentMode) playSound("beep10.wav");
     M5.Lcd.fillRect(16, 233, 284, 9, BLACK);
     M5.Lcd.fillRoundRect(100, 136, 212, 96, 4, BLACK);
     M5.Lcd.drawFastHLine(21, 233, 270, CYAN);
@@ -1409,7 +1428,7 @@ void loop() {
   }
 
   if (M5.BtnC.wasPressed()) {
-    playSound("beep18.wav");
+    if (!silentMode) playSound("beep18.wav");
     // Hintergrundbox anzeigen
     M5.Lcd.fillRoundRect(100, 136, 212, 96, 4, BLACK);
     M5.Lcd.setTextColor(GREEN, BLACK);
@@ -1438,7 +1457,7 @@ void loop() {
         for (int i = 0; i < numLocations; i++) {
           int y = topY + i * spacingY;
           if (p.y > y && p.y < (y + spacingY)) {
-            playSound("beep20.wav");
+            if (!silentMode) playSound("beep20.wav");
             // Auswahl visuell markieren
             M5.Lcd.fillRect(boxX - 3, y - 3, 210, spacingY, BLUE);  // Hervorhebung
             M5.Lcd.setTextColor(WHITE, BLUE);
@@ -1518,6 +1537,8 @@ void loop() {
 
   // Radar zeichnen (aufrufen!)
   drawRadarDisplay();
+  drawSilentIcon();  // Icon erstmals anzeigen
+
   // === RICHTUNGSANZEIGE (Kompass-Zeiger mit Freeze bei Langsamfahrt) ===
   static float lastValidCourse = 0;
 
@@ -1620,7 +1641,7 @@ void loop() {
   // ⏱️ GPS-Ping bei aktivem Fix alle 30 Sekunden
   if (gps.location.isValid() && millis() - lastGpsPingTime >= gpsPingInterval) {
     //playSound("beep29.wav");  // oder ein anderer kurzer Ton
-    playSound("sonar09.wav");
+    if (!silentMode) playSound("sonar09.wav");
     Serial.println("📍 GPS-Ping (Fix OK)");
     lastGpsPingTime = millis();
   }
@@ -1975,7 +1996,7 @@ void loop() {
 
   } else {
     if (!hasArrived) {
-      playSound("beep15.wav");  // 🎵 DESTINATION erreicht!
+      if (!silentMode) playSound("beep15.wav");  // 🎵 DESTINATION erreicht!
       Serial.println("🎯 DESTINATION erreicht!");
       hasArrived = true;
     }
@@ -2025,6 +2046,8 @@ void loop() {
 }
 
 //LOOP END//////////////////////////////////
+
+
 
 void displaySavedLocation() {
   M5.Lcd.fillRect(21, 233, 100, 10, BLACK);  // Löscht alten Text
@@ -2145,6 +2168,28 @@ void drawRadarDisplay() {
   }
 }
 
+void drawSilentIcon() {
+  if (!uiReady) return;
+
+  static bool lastDrawnSilentMode = -1;  // sicher initial unterschiedlich
+
+  int iconX = 161 - 11;
+  int iconY = 76 - 11;
+
+  if (silentMode != lastDrawnSilentMode) {
+    // Nur den Bereich des Icons löschen
+    M5.Lcd.fillRect(iconX, iconY, 22, 22, BLACK);
+
+    const char *iconPath = silentMode ? "/silent_on.png" : "/silent_off.png";
+    M5.Lcd.drawPngFile(SD, iconPath, iconX, iconY);
+
+    lastDrawnSilentMode = silentMode;
+  }
+}
+
+
+
+
 // Funktion zum Einlesen der gespeicherten Koordinaten aus der Datei
 void loadTargetsFromFile() {
   File myFile = SD.open("/home_coordinates.txt", FILE_READ);
@@ -2178,7 +2223,7 @@ void loadTargetsFromFile() {
 
 // Funktion zum Anzeigen der Zielauswahl
 void showTargetSelectionMenu() {
-  playSound("beep09.wav");
+  if (!silentMode) playSound("beep09.wav");
 
   M5.Lcd.fillRoundRect(100, 136, 212, 96, 4, BLACK);
   M5.Lcd.setTextSize(1);
@@ -2217,7 +2262,7 @@ void showTargetSelectionMenu() {
       for (int i = 0; i < targetList.size() && i < maxTargets; i++) {
         int y = topY + i * spacingY;
         if (p.y > y && p.y < (y + spacingY)) {
-          playSound("beep22.wav");
+          if (!silentMode) playSound("beep22.wav");
 
           M5.Lcd.fillRect(boxX - 3, y - 3, 210, spacingY, BLUE);
           M5.Lcd.setTextColor(WHITE, BLUE);
