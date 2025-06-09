@@ -699,9 +699,10 @@ if (!silentMode) playSound("beep62.wav");
   M5.Lcd.print(savedCity);  // Display saved location
   M5.Lcd.setTextColor(CYAN, BLACK);
   M5.Lcd.print(" <");
-
   M5.Lcd.setCursor(238, 233);
-  M5.Lcd.print(">  SELECT  ");
+        M5.Lcd.print(">  SELECT  ");
+        M5.Lcd.setCursor(300, 233);
+        M5.Lcd.print("<");
 
   updateVolumeBar();  // Show volume bar on boot
 }
@@ -826,7 +827,7 @@ void updateDoseRate() {
 void displayValues(float doseRate, float averageDose) {
   M5.Lcd.setTextSize(1);
   M5.Lcd.setCursor(227, 31);
-  M5.Lcd.setTextColor(GREENYELLOW, BLACK);
+  M5.Lcd.setTextColor(DARKCYAN, BLACK);
   M5.Lcd.print("DR:");
 
   // Display last valid dose rate if current is too low
@@ -840,7 +841,7 @@ void displayValues(float doseRate, float averageDose) {
   M5.Lcd.printf("%.2f uSv/h", doseRate);
 
   M5.Lcd.setCursor(227, 82);
-  M5.Lcd.setTextColor(GREENYELLOW, BLACK);
+  M5.Lcd.setTextColor(DARKCYAN, BLACK);
   M5.Lcd.print("AD:");
 
   averageDose = min(averageDose, 99.0f);
@@ -954,7 +955,7 @@ void updateWeatherDisplay() {
   // Temperature
   M5.Lcd.drawRoundRect(12, 31, 82, 11, 2, 0x00AF);
   M5.Lcd.setCursor(16, 33);
-  M5.Lcd.setTextColor(GREENYELLOW, BLACK);
+  M5.Lcd.setTextColor(DARKCYAN, BLACK);
   M5.Lcd.print("T:");
   M5.Lcd.setTextColor(CYAN, BLACK);
   M5.Lcd.print(bme.getTemperature_C(), 1);
@@ -963,7 +964,7 @@ void updateWeatherDisplay() {
   // Humidity
   M5.Lcd.drawRoundRect(12, 42, 82, 11, 2, 0x00AF);
   M5.Lcd.setCursor(16, 44);
-  M5.Lcd.setTextColor(GREENYELLOW, BLACK);
+  M5.Lcd.setTextColor(DARKCYAN, BLACK);
   M5.Lcd.print("H:");
   M5.Lcd.setTextColor(CYAN, BLACK);
   M5.Lcd.print(bme.getHumidity(), 0);
@@ -973,7 +974,7 @@ void updateWeatherDisplay() {
   M5.Lcd.drawRoundRect(12, 53, 82, 11, 2, 0x00AF);
   M5.Lcd.drawRoundRect(12, 64, 82, 12, 2, 0x00AF);
   M5.Lcd.setCursor(16, 55);
-  M5.Lcd.setTextColor(GREENYELLOW, BLACK);
+  M5.Lcd.setTextColor(DARKCYAN, BLACK);
   M5.Lcd.print("P:");
   M5.Lcd.setTextColor(CYAN, BLACK);
   M5.Lcd.print(pressure, 0);
@@ -1108,7 +1109,7 @@ void loop() {
   // === DRAW VOLUME BAR ===
   const int barHeight = 202;
   const int barWidth = 2;
-  const int barX = 316, barY = 230;  // Bottom coordinate
+  const int barX = 317, barY = 230;  // Bottom coordinate
   const int steps = 6;
   const uint16_t barColor = WHITE;
 
@@ -1486,11 +1487,12 @@ void loop() {
       // Refresh home location UI line
       M5.Lcd.setTextSize(1);
       displaySavedLocation();
-      M5.Lcd.print("> HOME POS <");
-      M5.Lcd.setCursor(238, 233);
-      M5.Lcd.print(">  SELECT  ");
-      M5.Lcd.setCursor(300, 233);
-      M5.Lcd.print("<");
+      M5.Lcd.setCursor(141, 233);
+        M5.Lcd.print("> HOME POS <");
+        M5.Lcd.setCursor(238, 233);
+        M5.Lcd.print(">  SELECT  ");
+        M5.Lcd.setCursor(300, 233);
+        M5.Lcd.print("<");
 
       // Clear info box
       M5.Lcd.fillRoundRect(100, 136, 212, 94, 4, BLACK);
@@ -1939,7 +1941,7 @@ M5.Lcd.print("E");
   if (CO > 20) {
     M5.Lcd.drawRoundRect(12, 77, 82, 11, 2, RED);
     M5.Lcd.setCursor(14, 79);
-    M5.Lcd.setTextColor(GREENYELLOW, BLACK);
+    M5.Lcd.setTextColor(DARKCYAN, BLACK);
     M5.Lcd.print("CO :");
     M5.Lcd.setTextColor(RED, BLACK);
     M5.Lcd.print(CO);
@@ -1947,7 +1949,7 @@ M5.Lcd.print("E");
   } else if (CO > 10) {
     M5.Lcd.drawRoundRect(12, 77, 82, 11, 2, ORANGE);
     M5.Lcd.setCursor(14, 79);
-    M5.Lcd.setTextColor(GREENYELLOW, BLACK);
+    M5.Lcd.setTextColor(DARKCYAN, BLACK);
     M5.Lcd.print("CO :");
     M5.Lcd.setTextColor(ORANGE, BLACK);
     M5.Lcd.print(CO);
@@ -1955,7 +1957,7 @@ M5.Lcd.print("E");
   } else {
     M5.Lcd.drawRoundRect(12, 77, 82, 11, 2, 0x00AF);
     M5.Lcd.setCursor(14, 79);
-    M5.Lcd.setTextColor(GREENYELLOW, BLACK);
+    M5.Lcd.setTextColor(DARKCYAN, BLACK);
     M5.Lcd.print("CO :");
     M5.Lcd.setTextColor(GREEN, BLACK);
     M5.Lcd.print(CO);
@@ -1966,7 +1968,7 @@ M5.Lcd.print("E");
   } else if (NH3 > 15) {
     M5.Lcd.drawRoundRect(12, 88, 82, 11, 2, RED);
     M5.Lcd.setCursor(14, 90);
-    M5.Lcd.setTextColor(GREENYELLOW, BLACK);
+    M5.Lcd.setTextColor(DARKCYAN, BLACK);
     M5.Lcd.print("NH3:");
     M5.Lcd.setTextColor(RED, BLACK);
     M5.Lcd.print(NH3);
@@ -1974,7 +1976,7 @@ M5.Lcd.print("E");
   } else if (NH3 > 5) {
     M5.Lcd.drawRoundRect(12, 88, 82, 11, 2, ORANGE);
     M5.Lcd.setCursor(14, 90);
-    M5.Lcd.setTextColor(GREENYELLOW, BLACK);
+    M5.Lcd.setTextColor(DARKCYAN, BLACK);
     M5.Lcd.print("NH3:");
     M5.Lcd.setTextColor(ORANGE, BLACK);
     M5.Lcd.print(NH3);
@@ -1982,7 +1984,7 @@ M5.Lcd.print("E");
   } else {
     M5.Lcd.drawRoundRect(12, 88, 82, 11, 2, 0x00AF);
     M5.Lcd.setCursor(14, 90);
-    M5.Lcd.setTextColor(GREENYELLOW, BLACK);
+    M5.Lcd.setTextColor(DARKCYAN, BLACK);
     M5.Lcd.print("NH3:");
     M5.Lcd.setTextColor(GREEN, BLACK);
     M5.Lcd.print(NH3);
@@ -1993,7 +1995,7 @@ M5.Lcd.print("E");
   } else if (NO2 > 5) {
     M5.Lcd.drawRoundRect(12, 99, 82, 11, 2, RED);
     M5.Lcd.setCursor(14, 101);
-    M5.Lcd.setTextColor(GREENYELLOW, BLACK);
+    M5.Lcd.setTextColor(DARKCYAN, BLACK);
     M5.Lcd.print("NO2:");
     M5.Lcd.setTextColor(RED, BLACK);
     M5.Lcd.print(NO2);
@@ -2001,7 +2003,7 @@ M5.Lcd.print("E");
   } else if (NO2 > 2) {
     M5.Lcd.drawRoundRect(12, 99, 82, 11, 2, ORANGE);
     M5.Lcd.setCursor(14, 101);
-    M5.Lcd.setTextColor(GREENYELLOW, BLACK);
+    M5.Lcd.setTextColor(DARKCYAN, BLACK);
     M5.Lcd.print("NO2:");
     M5.Lcd.setTextColor(ORANGE, BLACK);
     M5.Lcd.print(NO2);
@@ -2009,7 +2011,7 @@ M5.Lcd.print("E");
   } else {
     M5.Lcd.drawRoundRect(12, 99, 82, 11, 2, 0x00AF);
     M5.Lcd.setCursor(14, 101);
-    M5.Lcd.setTextColor(GREENYELLOW, BLACK);
+    M5.Lcd.setTextColor(DARKCYAN, BLACK);
     M5.Lcd.print("NO2:");
     M5.Lcd.setTextColor(GREEN, BLACK);
     M5.Lcd.print(NO2);
@@ -2020,7 +2022,7 @@ M5.Lcd.print("E");
   } else if (EMF > 40) {
     M5.Lcd.drawRoundRect(12, 110, 82, 11, 2, RED);
     M5.Lcd.setCursor(14, 112);
-    M5.Lcd.setTextColor(GREENYELLOW, BLACK);
+    M5.Lcd.setTextColor(DARKCYAN, BLACK);
     M5.Lcd.print("EMF:");
     M5.Lcd.setTextColor(RED, BLACK);
     M5.Lcd.print(EMF);
@@ -2028,7 +2030,7 @@ M5.Lcd.print("E");
   } else if (EMF > 30) {
     M5.Lcd.drawRoundRect(12, 110, 82, 11, 2, ORANGE);
     M5.Lcd.setCursor(14, 112);
-    M5.Lcd.setTextColor(GREENYELLOW, BLACK);
+    M5.Lcd.setTextColor(DARKCYAN, BLACK);
     M5.Lcd.print("EMF:");
     M5.Lcd.setTextColor(ORANGE, BLACK);
     M5.Lcd.print(EMF);
@@ -2036,7 +2038,7 @@ M5.Lcd.print("E");
   } else {
     M5.Lcd.drawRoundRect(12, 110, 82, 11, 2, 0x00AF);
     M5.Lcd.setCursor(14, 112);
-    M5.Lcd.setTextColor(GREENYELLOW, BLACK);
+    M5.Lcd.setTextColor(DARKCYAN, BLACK);
     M5.Lcd.print("EMF:");
     M5.Lcd.setTextColor(GREEN, BLACK);
     M5.Lcd.print(EMF);
@@ -2122,7 +2124,7 @@ M5.Lcd.print("E");
 
   // 📡 LATITUDE
   M5.Lcd.setTextSize(2);
-  M5.Lcd.setTextColor(GREENYELLOW, BLACK);
+  M5.Lcd.setTextColor(DARKCYAN, BLACK);
   M5.Lcd.setCursor(104, 138);
   M5.Lcd.print("LATI:");
 
@@ -2145,7 +2147,7 @@ M5.Lcd.print("E");
   }
 
   // 📡 LONGITUDE
-  M5.Lcd.setTextColor(GREENYELLOW, BLACK);
+  M5.Lcd.setTextColor(DARKCYAN, BLACK);
   M5.Lcd.setCursor(104, 157);
   M5.Lcd.print("LONG:");
 
@@ -2171,7 +2173,7 @@ M5.Lcd.print("E");
   M5.Lcd.drawLine(319, 138, 319, 228, CYAN);
   
   // ⛰ ALTITUDE 
-M5.Lcd.setTextColor(GREENYELLOW, BLACK);
+M5.Lcd.setTextColor(DARKCYAN, BLACK);
 M5.Lcd.setCursor(104, 176);
 M5.Lcd.print("ALTI:");
 
@@ -2192,7 +2194,7 @@ if (altDisplay != lastAltitude) {
 }
 
   // 🏃 SPEED
-M5.Lcd.setTextColor(GREENYELLOW, BLACK);
+M5.Lcd.setTextColor(DARKCYAN, BLACK);
 M5.Lcd.setCursor(104, 196);
 M5.Lcd.print("SPED:");
 
@@ -2214,7 +2216,7 @@ if (speedDisplay != lastSpeed) {
 static String lastTimeStr = "";
 
 // 🎯 DESTINATION
-M5.Lcd.setTextColor(GREENYELLOW, BLACK);
+M5.Lcd.setTextColor(DARKCYAN, BLACK);
 M5.Lcd.setCursor(104, 215);
 M5.Lcd.print("DEST:");
 
@@ -2611,10 +2613,11 @@ void showTargetSelectionMenu() {
           M5.Lcd.printf("%s, %s", targetList[i].city.c_str(), targetList[i].country.c_str());
           M5.Lcd.setTextColor(CYAN, BLACK);
           M5.Lcd.print(" <");
-          M5.Lcd.setCursor(238, 233);
-          M5.Lcd.print(">  SELECT  ");
-          M5.Lcd.setCursor(300, 233);
-          M5.Lcd.print("<");
+        M5.Lcd.setCursor(238, 233);
+        M5.Lcd.print(">  SELECT  ");
+        M5.Lcd.setCursor(300, 233);
+        M5.Lcd.print("<");
+
 
           selected = true;
           delay(1000);
