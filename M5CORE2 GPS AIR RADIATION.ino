@@ -1749,7 +1749,9 @@ if (distanceToHome < 10) {
       M5.Lcd.print("W");
       M5.Lcd.setCursor(89, 181);
       M5.Lcd.print("E");
-
+      M5.Lcd.setCursor(50, 214);
+      M5.Lcd.print("S");
+      
       compassInitDone = true;
     }
 else {
@@ -1880,6 +1882,8 @@ M5.Lcd.setCursor(10, 181);
 M5.Lcd.print("W");
 M5.Lcd.setCursor(89, 181);
 M5.Lcd.print("E");
+M5.Lcd.setCursor(50, 214);
+      M5.Lcd.print("S");
 }
 
   // === Periodic GPS ping every 30 seconds (if fix available) ===
