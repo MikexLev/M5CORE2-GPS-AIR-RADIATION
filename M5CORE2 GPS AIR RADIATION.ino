@@ -105,16 +105,17 @@ struct Location {
   const char *name;
   float lat;
   float lon;
+  const char *soundFile;
 };
 
 Location seedBanks[] = {
-  { "CGN WAGENINGEN NETHERLANDS", 51.9863, 5.6680 },
-  { "IPK GATERSLEBEN GERMANY", 51.8247, 11.2792 },
-  { "NORDGEN PLANTS ALNARP SWEDEN", 55.6601, 13.0834 },
-  { "INRAE PARIS FRANCE", 48.8611, 2.3062 },
-  { "MILLENIUMSEED BANK LONDON ENGLAND", 51.0688, -0.0899 },
-  { "GERMOPLASMA MADRID SPAIN", 40.4425, -3.7291 },
-  { "GLOBAL SEED VAULT SVALBARD NORWAY", 78.1409, 15.2929 }
+  { "CGN WAGENINGEN NETHERLANDS", 51.9863, 5.6680, "cgn.wav" },
+  { "IPK GATERSLEBEN GERMANY", 51.8247, 11.2792, "ipk.wav" },
+  { "NORDGEN PLANTS ALNARP SWEDEN", 55.6601, 13.0834, "nordgen.wav" },
+  { "INRAE PARIS FRANCE", 48.8611, 2.3062, "inrae.wav" },
+  { "MILLENIUMSEED BANK LONDON ENGLAND", 51.0688, -0.0899, "millenium.wav" },
+  { "GERMOPLASMA MADRID SPAIN", 40.4425, -3.7291, "germoplasma.wav" },
+  { "GLOBAL SEED VAULT SVALBARD NORWAY", 78.1409, 15.2929, "global.wav" }
 };
 
 const int numLocations = sizeof(seedBanks) / sizeof(seedBanks[0]);
@@ -1576,7 +1577,8 @@ void loop() {
               M5.Lcd.print(">  SELECT  ");
               M5.Lcd.setCursor(300, 233);
               M5.Lcd.print("<");
-
+              playSound(seedBanks[i].soundFile);
+              delay(250);
               selected = true;
               delay(1000);
             } else {
